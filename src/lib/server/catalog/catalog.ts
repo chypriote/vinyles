@@ -1,8 +1,14 @@
-import { and, count, eq, inArray, isNotNull, sql } from 'drizzle-orm';
+import { and, count, eq, gt, inArray, isNotNull, lte, sql } from 'drizzle-orm';
 import { drizzle, type DrizzleD1Database } from 'drizzle-orm/d1';
 import { albums, artists, priceQuotes, records, stores, wishlistItems } from '../db/schema';
 import { issueToken, passwordMatches, tokenIsValid, UnauthorizedError } from './auth';
-import { findAlbum, findCover } from './lookup';
+import {
+	findAlbum,
+	findCandidateImage,
+	findCover,
+	findReleaseCandidates,
+	searchCandidates
+} from './lookup';
 import type {
 	AcquisitionInput,
 	AlbumSummary,
@@ -104,7 +110,9 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 		artist: artists.name,
 		title: albums.title,
 		releaseYear: albums.releaseYear,
-		coverKey: albums.coverKey
+		coverKey: albums.coverKey,
+		coverChosen: albums.coverChosen,
+		coverVersion: albums.coverVersion
 	};
 
 	async function loadRecords(id?: number): Promise<RecordView[]> {
@@ -209,24 +217,41 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 		throw new Error('Acquisition must be a purchase or a gift');
 	}
 
-	/** Looks the Album up on MusicBrainz and the Cover Art Archive and saves what it finds. */
-	async function lookUpAlbum(albumId: number, artist: string, title: string) {
+	/**
+	 * Looks the Album up on MusicBrainz and the Cover Art Archive and saves what it finds.
+	 * An Owner-chosen Cover is kept unless `replace` is set; any Cover written is unmarked and gets a new version.
+	 */
+	async function lookUpAlbum(albumId: number, artist: string, title: string, replace = false) {
 		const match = await findAlbum(artist, title, intervalMs);
 		if (!match) {
 			await db.update(albums).set({ musicbrainzId: NO_MATCH }).where(eq(albums.id, albumId));
 			return;
 		}
-		const cover = await findCover(match.musicbrainzId);
-		let coverKey: string | null = null;
+		const isChosen = async () =>
+			(
+				await db
+					.select({ coverChosen: albums.coverChosen })
+					.from(albums)
+					.where(eq(albums.id, albumId))
+			)[0].coverChosen;
+		const found = !replace && (await isChosen()) ? null : await findCover(match.musicbrainzId);
+		// The Owner may have picked a Cover while the lookup was running.
+		const cover = found && (replace || !(await isChosen())) ? found : null;
+		const coverKey = `covers/${albumId}`;
 		if (cover) {
-			coverKey = `covers/${albumId}`;
 			await env.COVERS.put(coverKey, cover.body, {
 				httpMetadata: { contentType: cover.contentType }
 			});
 		}
 		await db
 			.update(albums)
-			.set({ releaseYear: match.releaseYear, musicbrainzId: match.musicbrainzId, coverKey })
+			.set({
+				releaseYear: match.releaseYear,
+				musicbrainzId: match.musicbrainzId,
+				...(cover
+					? { coverKey, coverChosen: false, coverVersion: sql`${albums.coverVersion} + 1` }
+					: {})
+			})
 			.where(eq(albums.id, albumId));
 	}
 
@@ -332,6 +357,48 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 			const object = await env.COVERS.get(album.coverKey);
 			if (!object) return null;
 			return { body: object.body, contentType: object.httpMetadata?.contentType ?? 'image/jpeg' };
+		},
+
+		async listCoverCandidates(token, albumId) {
+			await owner(token);
+			const album = (
+				await db
+					.select({
+						artist: artists.name,
+						title: albums.title,
+						musicbrainzId: albums.musicbrainzId
+					})
+					.from(albums)
+					.innerJoin(artists, eq(albums.artistId, artists.id))
+					.where(eq(albums.id, albumId))
+			)[0];
+			if (!album) throw new Error('Album not found');
+			if (album.musicbrainzId && album.musicbrainzId !== NO_MATCH) {
+				const releases = await findReleaseCandidates(album.musicbrainzId, intervalMs);
+				if (releases.length) return releases;
+			}
+			return searchCandidates(album.artist, album.title, intervalMs);
+		},
+
+		async pickCover(token, input) {
+			await owner(token);
+			const album = (
+				await db.select({ id: albums.id }).from(albums).where(eq(albums.id, input.albumId))
+			)[0];
+			if (!album) throw new Error('Album not found');
+			if (input.source !== 'release' && input.source !== 'release-group') {
+				throw new Error('Unknown candidate');
+			}
+			const image = await findCandidateImage(input.source, input.candidateId);
+			if (!image) throw new Error('This candidate has no image');
+			const coverKey = `covers/${album.id}`;
+			await env.COVERS.put(coverKey, image.body, {
+				httpMetadata: { contentType: image.contentType }
+			});
+			await db
+				.update(albums)
+				.set({ coverKey, coverChosen: true, coverVersion: sql`${albums.coverVersion} + 1` })
+				.where(eq(albums.id, album.id));
 		},
 
 		async login(password) {
@@ -551,20 +618,31 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 
 		async lookupNext(token, input) {
 			await owner(token);
+			if (input.replace && !input.rerun) throw new Error('replace needs rerun');
 			const size = Math.max(0, Math.floor(input.size));
+			const after = input.after ?? 0;
 			const pending = await db
 				.select({ id: albums.id, artist: artists.name, title: albums.title })
 				.from(albums)
 				.innerJoin(artists, eq(albums.artistId, artists.id))
-				.where(sql`${albums.musicbrainzId} IS NULL`)
+				.where(input.rerun ? gt(albums.id, after) : sql`${albums.musicbrainzId} IS NULL`)
 				.orderBy(albums.id)
 				.limit(size);
 			for (const album of pending) {
 				try {
-					await lookUpAlbum(album.id, album.artist, album.title);
+					await lookUpAlbum(album.id, album.artist, album.title, input.replace);
 				} catch {
 					// Stays pending: skipped for this batch, retried by a later one.
 				}
+			}
+			if (input.rerun) {
+				const last = pending.at(-1)?.id ?? Number.MAX_SAFE_INTEGER;
+				const [{ total }] = await db.select({ total: count() }).from(albums);
+				const [{ done }] = await db
+					.select({ done: count() })
+					.from(albums)
+					.where(lte(albums.id, last));
+				return { total, done, after: last };
 			}
 			return progress();
 		},

@@ -8,6 +8,7 @@
 	import Button from '#lib/components/Button.svelte';
 	import Chip from '#lib/components/Chip.svelte';
 	import Cover from '#lib/components/Cover.svelte';
+	import CoverPicker from '#lib/components/CoverPicker.svelte';
 	import CoverGrid from '#lib/components/CoverGrid.svelte';
 	import DesireDots from '#lib/components/DesireDots.svelte';
 	import DesireFilter from '#lib/components/DesireFilter.svelte';
@@ -81,6 +82,7 @@
 	let anchor = $state<HTMLElement | null>(null);
 	let open = $state(false);
 	let gotItOpen = $state(false);
+	let coverOpen = $state(false);
 
 	async function drop() {
 		if (!selected) return;
@@ -93,6 +95,7 @@
 		if (selectedId !== null && !selected) {
 			open = false;
 			gotItOpen = false;
+			coverOpen = false;
 			selectedId = null;
 		}
 	});
@@ -191,6 +194,14 @@
 				>
 					Got it
 				</Button>
+				<Button
+					onclick={() => {
+						open = false;
+						coverOpen = true;
+					}}
+				>
+					Change cover
+				</Button>
 				<Button onclick={drop}>Drop</Button>
 			{/if}
 		{/snippet}
@@ -205,6 +216,20 @@
 					wishlistItemId={selected.id}
 					stores={data.stores}
 					onDone={() => (gotItOpen = false)}
+				/>
+			{/if}
+		{/snippet}
+	</Popup>
+{/if}
+
+{#if data.isOwner && selected}
+	<Popup bind:open={coverOpen} album="Change cover">
+		{#snippet details()}
+			{#if selected}
+				<CoverPicker
+					albumId={selected.album.id}
+					onBack={() => (coverOpen = false)}
+					onDone={() => (coverOpen = false)}
 				/>
 			{/if}
 		{/snippet}

@@ -25,6 +25,29 @@ export interface AlbumSummary {
 	title: string;
 	releaseYear: number | null;
 	coverKey: string | null;
+	/** The Owner picked this Cover. */
+	coverChosen: boolean;
+	/** Changes whenever the Cover image changes. */
+	coverVersion: number;
+}
+
+/** A candidate image for the Cover of an Album. */
+export interface CoverCandidate {
+	/** MusicBrainz id of the release or release group the image belongs to. */
+	id: string;
+	source: 'release' | 'release-group';
+	/** Preview image. */
+	imageUrl: string;
+	/** Only for release-group search hits (Album without match). */
+	artist?: string;
+	title?: string;
+	year?: number | null;
+}
+
+export interface PickCoverInput {
+	albumId: number;
+	candidateId: string;
+	source: CoverCandidate['source'];
 }
 
 export type Acquisition =
@@ -188,11 +211,19 @@ export interface ImportRowsResult {
 export interface ImportProgress {
 	total: number;
 	done: number;
+	/** Rerun only: the last Album id looked up. Pass it back as `after` for the next batch. */
+	after?: number;
 }
 
 export interface LookupBatchInput {
 	/** Albums to look up in this request. Keep small: subrequest limit and one MusicBrainz request per second. */
 	size: number;
+	/** Look up every Album again, not only the ones not looked up yet. Keeps Owner-chosen Covers. */
+	rerun?: boolean;
+	/** Also overwrite Owner-chosen Covers. Only valid with `rerun`. */
+	replace?: boolean;
+	/** Rerun only: continue after this Album id (the `after` of the previous batch). */
+	after?: number;
 }
 
 export interface UnmatchedAlbum {
@@ -224,6 +255,12 @@ export interface Catalog {
 	login(password: string): Promise<LoginResult>;
 	verifyToken(token: string): Promise<boolean>;
 
+	// Cover (Owner)
+	/** Candidate images for the Cover of an Album: loaded on request. */
+	listCoverCandidates(token: string, albumId: number): Promise<CoverCandidate[]>;
+	/** Copies the picked image over the Cover of the Album and marks it Owner-chosen. */
+	pickCover(token: string, input: PickCoverInput): Promise<void>;
+
 	// Records (Owner)
 	addRecord(token: string, input: AddRecordInput): Promise<RecordView>;
 	editRecord(token: string, input: EditRecordInput): Promise<RecordView>;
@@ -239,7 +276,7 @@ export interface Catalog {
 
 	// Import (Owner, once)
 	importRows(token: string, input: ImportRowsInput): Promise<ImportRowsResult>;
-	/** Looks up the next batch of Albums that have not been looked up yet. */
+	/** Looks up the next batch of Albums: those not looked up yet, or with `rerun` every Album after `after`. */
 	lookupNext(token: string, input: LookupBatchInput): Promise<ImportProgress>;
 	importProgress(token: string): Promise<ImportProgress>;
 	listUnmatchedAlbums(token: string): Promise<UnmatchedAlbum[]>;

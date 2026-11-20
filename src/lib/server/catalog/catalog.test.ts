@@ -1,6 +1,6 @@
 import { env } from 'cloudflare:workers';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createCatalog } from './index';
+import { createCatalog, UnauthorizedError } from './index';
 import type { AcquisitionInput, AddRecordInput, Catalog, RecordView } from './types';
 
 let catalog: Catalog;
@@ -28,6 +28,10 @@ interface FakeAlbum {
 	mbid: string;
 	/** Cover bytes, or null for no Cover. */
 	cover: string | null;
+	/** MusicBrainz search score, 100 when omitted. Under 90 the lookup finds no match. */
+	score?: number;
+	/** Releases of the release group, each with its own front image (or none). */
+	releases?: { id: string; cover: string | null }[];
 }
 
 interface FakeCall {
@@ -57,23 +61,35 @@ function installFakeWeb() {
 		if (url.host === 'musicbrainz.org') {
 			if (failMusicBrainz) return new Response('unavailable', { status: 503 });
 			const query = url.searchParams.get('query') ?? '';
-			const hit = fakeAlbums.find((a) => query.includes(a.title) && query.includes(a.artist));
-			const groups = hit
-				? [
-						{
-							id: hit.mbid,
-							score: 100,
-							title: hit.title,
-							'first-release-date': `${hit.year}-03-01`
-						}
-					]
-				: [];
+			if (url.pathname.startsWith('/ws/2/release/')) {
+				const group = fakeAlbums.find((a) => a.mbid === url.searchParams.get('release-group'));
+				return Response.json({
+					releases: (group?.releases ?? []).map((r) => ({
+						id: r.id,
+						'cover-art-archive': { front: r.cover !== null }
+					}))
+				});
+			}
+			const limit = Number(url.searchParams.get('limit') ?? 25);
+			const groups = fakeAlbums
+				.filter((a) => query.includes(a.title) && query.includes(a.artist))
+				.slice(0, limit)
+				.map((a) => ({
+					id: a.mbid,
+					score: a.score ?? 100,
+					title: a.title,
+					'artist-credit': [{ name: a.artist }],
+					'first-release-date': `${a.year}-03-01`
+				}));
 			return Response.json({ 'release-groups': groups });
 		}
 		if (url.host === 'coverartarchive.org') {
-			const hit = fakeAlbums.find((a) => url.pathname.includes(a.mbid));
-			if (!hit || hit.cover === null) return new Response('Not Found', { status: 404 });
-			return new Response(hit.cover, { headers: { 'content-type': 'image/jpeg' } });
+			const bytes = [
+				...fakeAlbums.map((a) => [a.mbid, a.cover] as const),
+				...fakeAlbums.flatMap((a) => (a.releases ?? []).map((r) => [r.id, r.cover] as const))
+			].find(([id]) => url.pathname.includes(`/${id}/`))?.[1];
+			if (bytes == null) return new Response('Not Found', { status: 404 });
+			return new Response(bytes, { headers: { 'content-type': 'image/jpeg' } });
 		}
 		throw new Error(`Unexpected fetch to ${url.href}`);
 	});
@@ -789,6 +805,105 @@ describe('Import', () => {
 			expect(albums.find((a) => a.id === unmatched[0].albumId)?.releaseYear).toBe(1997);
 		});
 
+		describe('rerun and replace', () => {
+			const lookUpEverything = async (options: { rerun?: boolean; replace?: boolean }) => {
+				let progress = await catalog.lookupNext(token, { size: 2, ...options });
+				while (progress.done < progress.total) {
+					progress = await catalog.lookupNext(token, {
+						size: 2,
+						after: progress.after,
+						...options
+					});
+				}
+			};
+			const albumsByTitle = async () => {
+				const all = [
+					...(await catalog.listRecords()).records.map((r) => r.album),
+					...(await catalog.listWishlist()).items.map((i) => i.album)
+				];
+				return (title: string) => all.find((a) => a.title === title)!;
+			};
+
+			beforeEach(async () => {
+				await catalog.lookupNext(token, { size: 10 });
+				fakeAlbums.length = 0;
+				fakeAlbums.push(
+					{ artist: 'Air', title: 'Moon Safari', year: 1999, mbid: 'm1b', cover: 'new-moon' },
+					{ artist: 'Daft Punk', title: 'Discovery', year: 2001, mbid: 'm2', cover: 'new-disc' }
+				);
+			});
+
+			it('does not touch looked-up Albums by default', async () => {
+				const before = calls.length;
+				await catalog.lookupNext(token, { size: 10 });
+				expect(calls).toHaveLength(before);
+			});
+
+			it('updates year, match and Cover of every Album', async () => {
+				const old = (await albumsByTitle())('Moon Safari');
+				await lookUpEverything({ rerun: true });
+				const moon = (await albumsByTitle())('Moon Safari');
+				expect(moon.releaseYear).toBe(1999);
+				expect(moon.coverVersion).toBeGreaterThan(old.coverVersion);
+				expect(await (await env.COVERS.get(moon.coverKey!))?.text()).toBe('new-moon');
+				const discovery = (await albumsByTitle())('Discovery');
+				expect(await (await env.COVERS.get(discovery.coverKey!))?.text()).toBe('new-disc');
+				expect(musicBrainzCalls().length).toBeGreaterThanOrEqual(8);
+			});
+
+			async function chooseMoonCover() {
+				// Candidates come from the stored match (m1), which the new fakes no longer answer to.
+				const stored = {
+					artist: 'Air',
+					title: 'Moon Safari',
+					year: 1998,
+					mbid: 'm1',
+					cover: 'moon-cover',
+					releases: [{ id: 'rel-x', cover: 'chosen' }]
+				};
+				fakeAlbums.push(stored);
+				const id = (await albumsByTitle())('Moon Safari').id;
+				const [candidate] = await catalog.listCoverCandidates(token, id);
+				await catalog.pickCover(token, {
+					albumId: id,
+					candidateId: candidate.id,
+					source: candidate.source
+				});
+				fakeAlbums.splice(fakeAlbums.indexOf(stored), 1);
+				return id;
+			}
+
+			it('keeps an Owner-chosen Cover on rerun but still updates its year', async () => {
+				const id = await chooseMoonCover();
+				const chosen = (await albumsByTitle())('Moon Safari');
+				await lookUpEverything({ rerun: true });
+				const moon = (await albumsByTitle())('Moon Safari');
+				expect(moon.id).toBe(id);
+				expect(moon.releaseYear).toBe(1999);
+				expect(moon.coverChosen).toBe(true);
+				expect(moon.coverVersion).toBe(chosen.coverVersion);
+				expect(await (await env.COVERS.get(moon.coverKey!))?.text()).toBe('chosen');
+			});
+
+			it('overwrites and unmarks an Owner-chosen Cover on replace', async () => {
+				await chooseMoonCover();
+				const chosen = (await albumsByTitle())('Moon Safari');
+				await lookUpEverything({ rerun: true, replace: true });
+				const moon = (await albumsByTitle())('Moon Safari');
+				expect(moon.coverChosen).toBe(false);
+				expect(moon.coverVersion).toBeGreaterThan(chosen.coverVersion);
+				expect(await (await env.COVERS.get(moon.coverKey!))?.text()).toBe('new-moon');
+			});
+
+			it('refuses replace without rerun', async () => {
+				const before = calls.length;
+				await expect(catalog.lookupNext(token, { size: 10, replace: true })).rejects.toThrow(
+					/replace.*rerun/i
+				);
+				expect(calls).toHaveLength(before);
+			});
+		});
+
 		it('refuses a year for an unknown Album or a year that is not a year', async () => {
 			await expect(
 				catalog.saveYears(token, { years: [{ albumId: 999, releaseYear: 1990 }] })
@@ -914,5 +1029,232 @@ describe('Album lookup when one Album fails', () => {
 			(r) => r.album.title === 'Discovery'
 		)!.album;
 		expect(discovery.releaseYear).toBe(2001);
+	});
+});
+
+describe('Changing the Cover of an Album', () => {
+	const group = (over: Partial<FakeAlbum> = {}): FakeAlbum => ({
+		artist: 'Air',
+		title: 'Moon Safari',
+		year: 1998,
+		mbid: 'mb-air',
+		cover: 'group-cover',
+		...over
+	});
+
+	describe('candidates', () => {
+		it('are the front images of the releases of the matched release group, at most 12', async () => {
+			const releases = Array.from({ length: 15 }, (_, i) => ({
+				id: `rel-${i}`,
+				cover: i === 1 ? null : `c${i}`
+			}));
+			fakeAlbums.push(group({ releases }));
+			const record = await addRecord({ artist: 'Air', album: 'Moon Safari' });
+
+			const candidates = await catalog.listCoverCandidates(token, record.album.id);
+			expect(candidates).toHaveLength(12);
+			expect(candidates.map((c) => c.id)).toEqual(
+				releases
+					.filter((r) => r.cover !== null)
+					.slice(0, 12)
+					.map((r) => r.id)
+			);
+			expect(candidates.every((c) => c.source === 'release')).toBe(true);
+			expect(candidates[0].imageUrl).toContain('coverartarchive.org/release/rel-0/');
+		});
+
+		it('are the top 5 release-group search hits with artist, title and year when there is no match', async () => {
+			fakeAlbums.push(
+				...Array.from({ length: 7 }, (_, i) =>
+					group({ mbid: `mb-${i}`, year: 1990 + i, score: 50, cover: `c${i}` })
+				)
+			);
+			const record = await addRecord({ artist: 'Air', album: 'Moon Safari' });
+			expect(record.album.releaseYear).toBeNull();
+
+			const candidates = await catalog.listCoverCandidates(token, record.album.id);
+			expect(candidates).toHaveLength(5);
+			expect(candidates[2]).toMatchObject({
+				id: 'mb-2',
+				source: 'release-group',
+				artist: 'Air',
+				title: 'Moon Safari',
+				year: 1992
+			});
+			expect(candidates[2].imageUrl).toContain('coverartarchive.org/release-group/mb-2/');
+		});
+
+		it('fall back to the search hits when the release group has no release with a front image', async () => {
+			fakeAlbums.push(group({ releases: [{ id: 'rel-none', cover: null }] }));
+			const record = await addRecord({ artist: 'Air', album: 'Moon Safari' });
+
+			const candidates = await catalog.listCoverCandidates(token, record.album.id);
+			expect(candidates.map((c) => [c.source, c.id])).toEqual([['release-group', 'mb-air']]);
+		});
+
+		it('keeps a Cover the Owner picks while the lookup is running', async () => {
+			fakeAlbums.push(group({ cover: 'looked-up', releases: [{ id: 'rel-x', cover: 'chosen' }] }));
+			const real = vi.mocked(globalThis.fetch).getMockImplementation()!;
+			let picked = false;
+			vi.mocked(globalThis.fetch).mockImplementation(async (input, init) => {
+				const url = new URL(new Request(input as RequestInfo, init).url);
+				if (!picked && url.pathname.includes('/release-group/mb-air/')) {
+					picked = true;
+					const row = await env.DB.prepare('SELECT id FROM album').first<{ id: number }>();
+					const id = row!.id;
+					await catalog.pickCover(token, {
+						albumId: id,
+						candidateId: 'rel-x',
+						source: 'release'
+					});
+				}
+				return real(input, init);
+			});
+			await addRecord({ artist: 'Air', album: 'Moon Safari' });
+			const moon = (await catalog.listRecords()).records[0].album;
+			expect(moon.coverChosen).toBe(true);
+			expect(await (await env.COVERS.get(moon.coverKey!))?.text()).toBe('chosen');
+		});
+
+		it('make at most one MusicBrainz request per interval', async () => {
+			const slow = createCatalog(env, { lookupIntervalMs: 60 });
+			fakeAlbums.push(group({ releases: [{ id: 'r', cover: 'x' }] }));
+			const record = await addRecord({ artist: 'Air', album: 'Moon Safari' });
+			calls.length = 0;
+			await slow.listCoverCandidates(token, record.album.id);
+			await slow.listCoverCandidates(token, record.album.id);
+			const times = musicBrainzCalls().map((c) => c.at);
+			expect(times).toHaveLength(2);
+			expect(times[1] - times[0]).toBeGreaterThanOrEqual(55);
+		});
+	});
+
+	describe('pick', () => {
+		async function matched() {
+			fakeAlbums.push(
+				group({
+					releases: [
+						{ id: 'rel-a', cover: 'bytes-a' },
+						{ id: 'rel-b', cover: 'bytes-b' }
+					]
+				})
+			);
+			await catalog.addWishlistItem(token, {
+				artist: 'Air',
+				album: 'Moon Safari',
+				variant: 'Reissue',
+				desire: 2
+			});
+			const record = await addRecord({ artist: 'Air', album: 'Moon Safari' });
+			return { record };
+		}
+
+		it('replaces the Cover, marks it chosen, and changes nothing else', async () => {
+			const { record } = await matched();
+			const before = record.album;
+			const [, second] = await catalog.listCoverCandidates(token, before.id);
+
+			await catalog.pickCover(token, {
+				albumId: before.id,
+				candidateId: second.id,
+				source: second.source
+			});
+
+			const after = (await catalog.listRecords()).records[0].album;
+			expect(await (await env.COVERS.get(after.coverKey!))?.text()).toBe('bytes-b');
+			expect(after.coverKey).toBe(before.coverKey);
+			expect(after.coverChosen).toBe(true);
+			expect(before.coverChosen).toBe(false);
+			expect(after.releaseYear).toBe(before.releaseYear);
+			expect(after.title).toBe(before.title);
+			const row = await env.DB.prepare('SELECT musicbrainz_id AS id FROM album WHERE id = ?')
+				.bind(before.id)
+				.first<{ id: string }>();
+			expect(row?.id).toBe('mb-air');
+		});
+
+		it('changes the Cover version so that the Cover URL changes', async () => {
+			const { record } = await matched();
+			const [first] = await catalog.listCoverCandidates(token, record.album.id);
+			await catalog.pickCover(token, {
+				albumId: record.album.id,
+				candidateId: first.id,
+				source: first.source
+			});
+			const after = (await catalog.listRecords()).records[0].album;
+			expect(after.coverVersion).not.toBe(record.album.coverVersion);
+		});
+
+		it('shows for the Records and Wishlist Items of the Album', async () => {
+			const { record } = await matched();
+			const [first] = await catalog.listCoverCandidates(token, record.album.id);
+			await catalog.pickCover(token, {
+				albumId: record.album.id,
+				candidateId: first.id,
+				source: first.source
+			});
+			const item = (await catalog.listWishlist()).items[0];
+			expect(item.album.id).toBe(record.album.id);
+			expect(item.album.coverVersion).toBe(
+				(await catalog.listRecords()).records[0].album.coverVersion
+			);
+			expect(item.album.coverChosen).toBe(true);
+		});
+
+		it('works for an Album without Cover and for an unmatched Album', async () => {
+			fakeAlbums.push(
+				group({ mbid: 'mb-low', score: 50, cover: 'low-cover' }),
+				group({
+					artist: 'Nobody',
+					title: 'Plain',
+					mbid: 'x',
+					cover: null,
+					releases: [{ id: 'rx', cover: 'rx-bytes' }]
+				})
+			);
+			const unmatched = await addRecord({ artist: 'Air', album: 'Moon Safari' });
+			expect(unmatched.album.coverKey).toBeNull();
+			const [candidate] = await catalog.listCoverCandidates(token, unmatched.album.id);
+			await catalog.pickCover(token, {
+				albumId: unmatched.album.id,
+				candidateId: candidate.id,
+				source: candidate.source
+			});
+			const album = (await catalog.listRecords()).records[0].album;
+			expect(await (await env.COVERS.get(album.coverKey!))?.text()).toBe('low-cover');
+			expect(album).toMatchObject({ coverChosen: true, releaseYear: null });
+		});
+
+		it('fails for an unknown Album or a candidate without image', async () => {
+			const { record } = await matched();
+			await expect(
+				catalog.pickCover(token, { albumId: 999, candidateId: 'rel-a', source: 'release' })
+			).rejects.toThrow();
+			await expect(
+				catalog.pickCover(token, {
+					albumId: record.album.id,
+					candidateId: 'nope',
+					source: 'release'
+				})
+			).rejects.toThrow();
+		});
+	});
+
+	it('is Owner-only', async () => {
+		fakeAlbums.push(group());
+		const record = await addRecord({ artist: 'Air', album: 'Moon Safari' });
+		calls.length = 0;
+		await expect(catalog.listCoverCandidates('bad', record.album.id)).rejects.toThrow(
+			UnauthorizedError
+		);
+		await expect(
+			catalog.pickCover('bad', {
+				albumId: record.album.id,
+				candidateId: 'mb-air',
+				source: 'release-group'
+			})
+		).rejects.toThrow(UnauthorizedError);
+		expect(calls).toHaveLength(0);
+		expect((await catalog.listRecords()).records[0].album.coverChosen).toBe(false);
 	});
 });

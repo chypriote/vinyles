@@ -5,6 +5,7 @@
 	import type { RecordView } from '#lib/server/catalog/types';
 	import { formatCents, formatDate } from '#lib/format';
 	import Button from '#lib/components/Button.svelte';
+	import CoverPicker from '#lib/components/CoverPicker.svelte';
 	import Chip from '#lib/components/Chip.svelte';
 	import Cover from '#lib/components/Cover.svelte';
 	import CoverGrid from '#lib/components/CoverGrid.svelte';
@@ -77,6 +78,7 @@
 	let anchor = $state<HTMLElement | null>(null);
 	let open = $state(false);
 	let editOpen = $state(false);
+	let changingCover = $state(false);
 
 	// The row can disappear after a change (deleted, got, dropped): close its Popups.
 	$effect(() => {
@@ -191,14 +193,26 @@
 {/if}
 
 {#if data.isOwner && selected}
-	<Popup bind:open={editOpen} album="Edit record">
+	<Popup bind:open={editOpen} album="Edit record" onDismiss={() => (changingCover = false)}>
 		{#snippet details()}
-			<RecordForm
-				record={selected}
-				artists={data.artists}
-				stores={data.stores}
-				onDone={() => (editOpen = false)}
-			/>
+			{#if changingCover}
+				<CoverPicker
+					albumId={selected.album.id}
+					onBack={() => (changingCover = false)}
+					onDone={() => {
+						changingCover = false;
+						editOpen = false;
+					}}
+				/>
+			{:else}
+				<RecordForm
+					record={selected}
+					artists={data.artists}
+					stores={data.stores}
+					onDone={() => (editOpen = false)}
+				/>
+				<Button onclick={() => (changingCover = true)}>Change cover</Button>
+			{/if}
 		{/snippet}
 	</Popup>
 {/if}
