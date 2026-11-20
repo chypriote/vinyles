@@ -7,6 +7,8 @@
 	import { Input } from './ui/input/index.js';
 	import UploadIcon from '@lucide/svelte/icons/upload';
 	import LinkIcon from '@lucide/svelte/icons/link';
+	import SpinnerIcon from '@lucide/svelte/icons/loader-circle';
+	import { tick } from 'svelte';
 
 	let {
 		albumId,
@@ -85,6 +87,14 @@
 	let remoteUrl = $state<string | null>(null);
 	let urlOpen = $state(false);
 	let urlText = $state('');
+	let urlInput = $state<HTMLInputElement | null>(null);
+
+	async function toggleUrl() {
+		urlOpen = !urlOpen;
+		if (!urlOpen) return;
+		await tick();
+		urlInput?.focus();
+	}
 
 	function chooseUrl(event: SubmitEvent) {
 		event.preventDefault();
@@ -146,6 +156,7 @@
 
 	async function useCover() {
 		if (!picked && !upload && !remoteUrl) return;
+		confirmOpen = false;
 		busy = true;
 		try {
 			const response = remoteUrl
@@ -181,6 +192,16 @@
 </script>
 
 <div class="flex min-w-0 flex-col gap-3">
+	{#if busy}
+		<!-- Covers the whole Popup (its content is the nearest positioned ancestor). -->
+		<div
+			role="status"
+			aria-label="Saving the cover"
+			class="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-background/70"
+		>
+			<SpinnerIcon class="size-10 text-primary motion-safe:animate-spin" />
+		</div>
+	{/if}
 	<form class="flex gap-2" onsubmit={search}>
 		<input
 			bind:this={fileInput}
@@ -205,7 +226,7 @@
 			aria-label="Use an image address"
 			aria-expanded={urlOpen}
 			disabled={busy}
-			onclick={() => (urlOpen = !urlOpen)}
+			onclick={toggleUrl}
 		>
 			<LinkIcon class="size-5" />
 		</IconButton>
@@ -216,6 +237,7 @@
 		<form class="flex gap-2" onsubmit={chooseUrl}>
 			<Input
 				type="url"
+				bind:ref={urlInput}
 				bind:value={urlText}
 				aria-label="Image address"
 				placeholder="https://…"

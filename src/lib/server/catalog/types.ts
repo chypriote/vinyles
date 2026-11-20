@@ -89,6 +89,8 @@ export interface CoverImage {
 
 export type SortKey = 'artist' | 'album' | 'year';
 export type RecordSortKey = SortKey | 'acquired';
+/** `desire`: most wanted first, then Artist and Album. */
+export type WishlistSortKey = SortKey | 'desire';
 
 export interface ListFilters {
 	/** One search over Artist and Album. */
@@ -104,7 +106,7 @@ export interface ListRecordsInput extends ListFilters {
 export interface ListWishlistInput extends ListFilters {
 	/** Several at once. Empty or missing = all. */
 	desires?: Desire[];
-	sort?: SortKey;
+	sort?: WishlistSortKey;
 }
 
 export interface CollectionTotals {
@@ -293,6 +295,7 @@ export interface Catalog {
 	editWishlistItem(token: string, input: EditWishlistItemInput): Promise<WishlistItemView>;
 	gotIt(token: string, input: GotItInput): Promise<RecordView>;
 	drop(token: string, wishlistItemId: number): Promise<void>;
+	setDesire(token: string, wishlistItemIds: number[], desire: Desire): Promise<void>;
 
 	// Import (Owner, once)
 	importRows(token: string, input: ImportRowsInput): Promise<ImportRowsResult>;
