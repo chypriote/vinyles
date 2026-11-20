@@ -244,6 +244,22 @@ export interface SaveYearsInput {
 	years: { albumId: number; releaseYear: number }[];
 }
 
+// --- Cover quality check (Owner) ---------------------------------------------
+
+export interface CoverCheckProgress {
+	/** Albums whose Cover was not checked yet, or changed since it was checked. */
+	pending: number;
+	/** Checked Covers that fail, with the reason. */
+	failing: number;
+}
+
+export interface FailingCover {
+	albumId: number;
+	artist: string;
+	title: string;
+	reason: string;
+}
+
 // --- Catalog -----------------------------------------------------------------
 
 /**
@@ -274,6 +290,13 @@ export interface Catalog {
 	uploadCover(token: string, input: UploadCoverInput): Promise<void>;
 	/** Fetches an image from an http(s) address (same checks as an upload) and uses it as the Cover. */
 	uploadCoverFromUrl(token: string, input: { albumId: number; url: string }): Promise<void>;
+
+	// Cover quality (Owner)
+	/** Checks the next `size` unchecked Covers (file size and pixel size from the image header). */
+	checkCovers(token: string, input: { size: number }): Promise<CoverCheckProgress>;
+	coverCheckProgress(token: string): Promise<CoverCheckProgress>;
+	/** Albums whose current Cover failed its check. */
+	listFailingCovers(token: string): Promise<FailingCover[]>;
 
 	// Records (Owner)
 	addRecord(token: string, input: AddRecordInput): Promise<RecordView>;

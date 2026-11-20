@@ -1427,3 +1427,77 @@ describe('Changing the Cover of an Album', () => {
 		expect((await catalog.listRecords()).records[0].album.coverChosen).toBe(false);
 	});
 });
+
+describe('Cover quality check', () => {
+	/** A PNG header for a width and height, padded with zeros to `bytes`. */
+	function png(width: number, height: number, bytes = 20 * 1024) {
+		const body = new Uint8Array(bytes);
+		body.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+		const view = new DataView(body.buffer);
+		view.setUint32(16, width);
+		view.setUint32(20, height);
+		return body.buffer;
+	}
+
+	async function withCover(title: string, body?: ArrayBuffer) {
+		const record = await addRecord({ artist: 'Air', album: title });
+		if (body) {
+			await catalog.uploadCover(token, {
+				albumId: record.album.id,
+				body,
+				contentType: 'image/png'
+			});
+		}
+		return record.album.id;
+	}
+
+	it('fails a missing, small, non-square, tiny or unreadable Cover with its reason', async () => {
+		await withCover('Missing');
+		await withCover('Small', png(300, 300));
+		await withCover('Wide', png(600, 400));
+		await withCover('Tiny', png(500, 500, 2 * 1024));
+		await withCover('Broken', new Uint8Array(20 * 1024).buffer);
+		await withCover('Good', png(500, 500));
+		await withCover('Almost square', png(500, 470));
+
+		expect(await catalog.coverCheckProgress(token)).toEqual({ pending: 7, failing: 0 });
+		expect(await catalog.checkCovers(token, { size: 20 })).toEqual({ pending: 0, failing: 5 });
+		const failing = await catalog.listFailingCovers(token);
+		expect(Object.fromEntries(failing.map((f) => [f.title, f.reason]))).toEqual({
+			Missing: 'No cover',
+			Small: 'Too small: 300×300 px (at least 400 px)',
+			Wide: 'Not square: 600×400 px',
+			Tiny: 'File too small: 2 KB (at least 15 KB)',
+			Broken: 'Unreadable image'
+		});
+	});
+
+	it('checks a batch at a time', async () => {
+		await withCover('A', png(500, 500));
+		await withCover('B', png(500, 500));
+		await withCover('C', png(500, 500));
+		expect((await catalog.checkCovers(token, { size: 2 })).pending).toBe(1);
+		expect((await catalog.checkCovers(token, { size: 2 })).pending).toBe(0);
+	});
+
+	it('checks again a Cover that changed, and drops it from the failures until then', async () => {
+		const id = await withCover('Small', png(300, 300));
+		await catalog.checkCovers(token, { size: 5 });
+		expect(await catalog.listFailingCovers(token)).toHaveLength(1);
+
+		await catalog.uploadCover(token, {
+			albumId: id,
+			body: png(500, 500),
+			contentType: 'image/png'
+		});
+		expect(await catalog.listFailingCovers(token)).toEqual([]);
+		expect(await catalog.coverCheckProgress(token)).toEqual({ pending: 1, failing: 0 });
+		expect(await catalog.checkCovers(token, { size: 5 })).toEqual({ pending: 0, failing: 0 });
+	});
+
+	it('is Owner-only', async () => {
+		await expect(catalog.checkCovers('bad', { size: 5 })).rejects.toThrow(UnauthorizedError);
+		await expect(catalog.coverCheckProgress('bad')).rejects.toThrow(UnauthorizedError);
+		await expect(catalog.listFailingCovers('bad')).rejects.toThrow(UnauthorizedError);
+	});
+});

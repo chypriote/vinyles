@@ -1,6 +1,7 @@
-import { and, count, eq, gt, inArray, isNotNull, lte, sql } from 'drizzle-orm';
+import { and, count, eq, gt, inArray, isNotNull, isNull, lte, ne, or, sql } from 'drizzle-orm';
 import { drizzle, type DrizzleD1Database } from 'drizzle-orm/d1';
 import { albums, artists, priceQuotes, records, stores, wishlistItems } from '../db/schema';
+import { checkCoverImage } from './cover-check';
 import { issueToken, passwordMatches, tokenIsValid, UnauthorizedError } from './auth';
 import {
 	findAlbum,
@@ -16,6 +17,7 @@ import type {
 	AlbumSummary,
 	Artist,
 	Catalog,
+	CoverCheckProgress,
 	Desire,
 	ImportProgress,
 	ListFilters,
@@ -45,6 +47,8 @@ export interface CatalogOptions {
 type Db = DrizzleD1Database;
 type BatchStatements = Parameters<Db['batch']>[0];
 
+/** Enough for the size in the header of a JPEG, PNG or WebP. */
+const HEADER_BYTES = 64 * 1024;
 const UPLOAD_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const MAX_UPLOAD_BYTES = 2 * 1024 * 1024;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -334,6 +338,32 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 			.from(albums)
 			.where(isNotNull(albums.musicbrainzId));
 		return { total, done };
+	}
+
+	// --- Cover quality helpers -------------------------------------------------
+
+	const unchecked = or(
+		isNull(albums.coverCheckedVersion),
+		ne(albums.coverCheckedVersion, albums.coverVersion)
+	);
+	const failing = and(
+		eq(albums.coverCheckedVersion, albums.coverVersion),
+		isNotNull(albums.coverCheckReason)
+	);
+
+	async function coverCheckProgress(): Promise<CoverCheckProgress> {
+		const [{ pending }] = await db.select({ pending: count() }).from(albums).where(unchecked);
+		const [{ failed }] = await db.select({ failed: count() }).from(albums).where(failing);
+		return { pending, failing: failed };
+	}
+
+	/** The reason the stored Cover fails, or null when it passes. */
+	async function reasonToFail(coverKey: string | null): Promise<string | null> {
+		if (!coverKey) return 'No cover';
+		// Only the header is read: it holds the pixel size, and the object size comes with it.
+		const object = await env.COVERS.get(coverKey, { range: { offset: 0, length: HEADER_BYTES } });
+		if (!object) return 'Image missing from storage';
+		return checkCoverImage(object.size, new Uint8Array(await object.arrayBuffer()));
 	}
 
 	return {
@@ -714,6 +744,67 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 				return { total, done, after: last };
 			}
 			return progress();
+		},
+
+		async checkCovers(token, input) {
+			await owner(token);
+			const size = Math.max(0, Math.floor(input.size));
+			const pending = await db
+				.select({ id: albums.id, coverKey: albums.coverKey, coverVersion: albums.coverVersion })
+				.from(albums)
+				.where(unchecked)
+				.orderBy(albums.id)
+				.limit(size);
+			const results = await Promise.all(
+				pending.map(async (album) => {
+					try {
+						return { album, reason: await reasonToFail(album.coverKey) };
+					} catch {
+						return null; // Stays pending: a later run retries it.
+					}
+				})
+			);
+			await run(
+				results.flatMap((result) =>
+					result
+						? [
+								db
+									.update(albums)
+									.set({
+										coverCheckedVersion: result.album.coverVersion,
+										coverCheckReason: result.reason
+									})
+									.where(
+										and(
+											eq(albums.id, result.album.id),
+											eq(albums.coverVersion, result.album.coverVersion)
+										)
+									)
+							]
+						: []
+				)
+			);
+			return coverCheckProgress();
+		},
+
+		async coverCheckProgress(token) {
+			await owner(token);
+			return coverCheckProgress();
+		},
+
+		async listFailingCovers(token) {
+			await owner(token);
+			return db
+				.select({
+					albumId: albums.id,
+					artist: artists.name,
+					title: albums.title,
+					reason: sql<string>`${albums.coverCheckReason}`
+				})
+				.from(albums)
+				.innerJoin(artists, eq(albums.artistId, artists.id))
+				.where(failing)
+				.orderBy(artists.name, albums.title);
 		},
 
 		async importProgress(token) {

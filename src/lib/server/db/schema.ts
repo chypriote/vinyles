@@ -29,7 +29,11 @@ export const albums = sqliteTable(
 		coverChosen: integer('cover_chosen', { mode: 'boolean' }).notNull().default(false),
 		/** Bumped when the Cover image changes, so that its cached URL changes too. */
 		coverVersion: integer('cover_version').notNull().default(0),
-		musicbrainzId: text('musicbrainz_id')
+		musicbrainzId: text('musicbrainz_id'),
+		/** `coverVersion` the quality check ran on. Null until checked; stale after a Cover change. */
+		coverCheckedVersion: integer('cover_checked_version'),
+		/** Why the checked Cover fails. Null for a pass. */
+		coverCheckReason: text('cover_check_reason')
 	},
 	(t) => [uniqueIndex('album_artist_title_unique').on(t.artistId, t.title)]
 );
