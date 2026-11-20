@@ -16,6 +16,7 @@
 	import EmptyState from '#lib/components/EmptyState.svelte';
 	import AddAction from '#lib/components/AddAction.svelte';
 	import LoginAction from '#lib/components/LoginAction.svelte';
+	import WishlistEditForm from '#lib/components/WishlistEditForm.svelte';
 	import GotItForm from '#lib/components/GotItForm.svelte';
 	import Popup from '#lib/components/Popup.svelte';
 	import SearchField from '#lib/components/SearchField.svelte';
@@ -87,6 +88,7 @@
 	let anchor = $state<HTMLElement | null>(null);
 	let open = $state(false);
 	let gotItOpen = $state(false);
+	let editOpen = $state(false);
 	let coverOpen = $state(false);
 
 	let dropping = $state(false);
@@ -123,6 +125,7 @@
 		if (selectedId !== null && !selected) {
 			open = false;
 			gotItOpen = false;
+			editOpen = false;
 			coverOpen = false;
 			selectedId = null;
 		}
@@ -260,6 +263,14 @@
 				<Button
 					onclick={() => {
 						open = false;
+						editOpen = true;
+					}}
+				>
+					Edit
+				</Button>
+				<Button
+					onclick={() => {
+						open = false;
 						coverOpen = true;
 					}}
 				>
@@ -279,6 +290,20 @@
 					wishlistItemId={selected.id}
 					stores={data.stores}
 					onDone={() => (gotItOpen = false)}
+				/>
+			{/if}
+		{/snippet}
+	</Popup>
+{/if}
+
+{#if data.isOwner && selected}
+	<Popup bind:open={editOpen} album={`Edit ${selected.album.title}`}>
+		{#snippet details()}
+			{#if selected}
+				<WishlistEditForm
+					item={selected}
+					artists={data.artists}
+					onDone={() => (editOpen = false)}
 				/>
 			{/if}
 		{/snippet}

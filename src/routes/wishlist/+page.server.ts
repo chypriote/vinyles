@@ -10,6 +10,7 @@ export const load: PageServerLoad = async ({ platform }) => {
 
 export const actions: Actions = {
 	addWishlistItem: ownerActions.addWishlistItem,
+	editWishlistItem: ownerActions.editWishlistItem,
 	gotIt: ownerActions.gotIt,
 	drop: ownerActions.drop,
 	setDesire: ownerActions.setDesire

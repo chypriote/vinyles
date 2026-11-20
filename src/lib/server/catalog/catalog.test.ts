@@ -199,6 +199,7 @@ describe('Owner login', () => {
 			() => catalog.deleteRecord(bad, 1),
 			() => catalog.addStore(bad, { name: 'Shop' }),
 			() => catalog.addWishlistItem(bad, { artist: 'A', album: 'B', desire: 2 }),
+			() => catalog.editWishlistItem(bad, { id: 1, artist: 'A', album: 'B' }),
 			() => catalog.gotIt(bad, { wishlistItemId: 1, acquisition: acq }),
 			() => catalog.drop(bad, 1),
 			() => catalog.importRows(bad, { collection: [], wishlist: [] }),
@@ -430,11 +431,11 @@ describe('Collection list', () => {
 			]);
 		});
 
-		it('sorts by release year with unknown years last', async () => {
+		it('sorts by release year, latest first, with unknown years last', async () => {
 			expect(await titles({ sort: 'year' })).toEqual([
-				'Moon Safari',
-				'Discovery',
 				'Talkie Walkie',
+				'Discovery',
+				'Moon Safari',
 				'No Year'
 			]);
 		});
@@ -622,7 +623,7 @@ describe('Wishlist', () => {
 				'Moon Safari',
 				'Talkie Walkie'
 			]);
-			expect(await titles({ sort: 'year' })).toEqual(['Moon Safari', 'Discovery', 'Talkie Walkie']);
+			expect(await titles({ sort: 'year' })).toEqual(['Discovery', 'Moon Safari', 'Talkie Walkie']);
 		});
 
 		it('sorts most wanted first, ties by Artist then Album', async () => {
@@ -692,6 +693,33 @@ describe('Wishlist', () => {
 		});
 		expect((await catalog.listWishlist()).items).toEqual([]);
 		expect((await catalog.listRecords()).records).toEqual([record]);
+	});
+
+	it('edits the Artist, Album and variant of a Wishlist Item and keeps its desire', async () => {
+		const added = await catalog.addWishlistItem(token, {
+			artist: 'Air',
+			album: 'Moon Safarii',
+			variant: 'Blue',
+			desire: 3
+		});
+		if (added.status !== 'added') throw new Error();
+		const edited = await catalog.editWishlistItem(token, {
+			id: added.item.id,
+			artist: 'Air',
+			album: 'Moon Safari',
+			variant: null
+		});
+		expect(edited.id).toBe(added.item.id);
+		expect(edited.album.title).toBe('Moon Safari');
+		expect(edited.variant).toBeNull();
+		expect(edited.desire).toBe(3);
+		expect((await catalog.listWishlist()).items).toEqual([edited]);
+	});
+
+	it('refuses to edit a Wishlist Item that does not exist', async () => {
+		await expect(
+			catalog.editWishlistItem(token, { id: 999, artist: 'A', album: 'B' })
+		).rejects.toThrow();
 	});
 
 	it('Got it can be a Gift', async () => {

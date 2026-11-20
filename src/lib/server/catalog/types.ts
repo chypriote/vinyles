@@ -163,6 +163,13 @@ export interface AddWishlistItemInput {
 	addAnyway?: boolean;
 }
 
+export interface EditWishlistItemInput {
+	id: number;
+	artist: string;
+	album: string;
+	variant?: string | null;
+}
+
 export type AddWishlistItemResult =
 	{ status: 'added'; item: WishlistItemView } | { status: 'already-owned'; records: RecordView[] };
 
@@ -308,6 +315,7 @@ export interface Catalog {
 
 	// Wishlist (Owner)
 	addWishlistItem(token: string, input: AddWishlistItemInput): Promise<AddWishlistItemResult>;
+	editWishlistItem(token: string, input: EditWishlistItemInput): Promise<WishlistItemView>;
 	gotIt(token: string, input: GotItInput): Promise<RecordView>;
 	drop(token: string, wishlistItemId: number): Promise<void>;
 	setDesire(token: string, wishlistItemIds: number[], desire: Desire): Promise<void>;

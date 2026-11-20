@@ -90,7 +90,7 @@ function byYear(a: AlbumSummary, b: AlbumSummary) {
 	if (a.releaseYear === b.releaseYear) return byAlbum(a, b);
 	if (a.releaseYear === null) return 1;
 	if (b.releaseYear === null) return -1;
-	return a.releaseYear - b.releaseYear;
+	return b.releaseYear - a.releaseYear;
 }
 
 function albumComparator(sort: SortKey | undefined) {
@@ -561,6 +561,18 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 				await db.insert(priceQuotes).values(quotes.map((q) => ({ wishlistItemId: id, ...q })));
 			}
 			return { status: 'added', item: (await loadWishlist(id))[0] };
+		},
+
+		async editWishlistItem(token, input) {
+			await owner(token);
+			const [item] = await db.select().from(wishlistItems).where(eq(wishlistItems.id, input.id));
+			if (!item) throw new Error('Wishlist Item not found');
+			const albumId = await ensureAlbum(input.artist, input.album);
+			await db
+				.update(wishlistItems)
+				.set({ albumId, variant: cleanOrNull(input.variant) })
+				.where(eq(wishlistItems.id, input.id));
+			return (await loadWishlist(input.id))[0];
 		},
 
 		async gotIt(token, input) {
