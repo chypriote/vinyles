@@ -99,6 +99,18 @@ function installFakeWeb() {
 				]
 			});
 		}
+		if (url.host === 'images.example') {
+			if (url.pathname === '/big.png') {
+				return new Response(new Uint8Array(2 * 1024 * 1024 + 1), {
+					headers: { 'content-type': 'image/png' }
+				});
+			}
+			if (url.pathname === '/page.html') {
+				return new Response('<html>', { headers: { 'content-type': 'text/html' } });
+			}
+			if (url.pathname === '/missing.png') return new Response('no', { status: 404 });
+			return new Response('url-bytes', { headers: { 'content-type': 'image/webp; charset=x' } });
+		}
 		if (url.host === 'i.discogs.com') {
 			return new Response('discogs-bytes', { headers: { 'content-type': 'image/jpeg' } });
 		}
@@ -1213,6 +1225,28 @@ describe('Changing the Cover of an Album', () => {
 			await expect(upload({ body: png(0) })).rejects.toThrow('under 2 MB');
 			await expect(upload({ albumId: 99999 })).rejects.toThrow('Album not found');
 			await expect(upload({}, 'bad-token')).rejects.toThrow();
+		});
+	});
+
+	describe('upload from an address', () => {
+		it('fetches the image and makes it the Cover, and refuses bad addresses', async () => {
+			const record = await addRecord({ artist: 'Air', album: 'Moon Safari' });
+			const use = (url: string, t = token) =>
+				catalog.uploadCoverFromUrl(t, { albumId: record.album.id, url });
+
+			await use('https://images.example/cover.webp');
+			const after = (await catalog.listRecords()).records[0].album;
+			const object = await env.COVERS.get(after.coverKey!);
+			expect(await object?.text()).toBe('url-bytes');
+			expect(object?.httpMetadata?.contentType).toBe('image/webp');
+			expect(after.coverChosen).toBe(true);
+
+			await expect(use('nonsense')).rejects.toThrow('not a web address');
+			await expect(use('ftp://images.example/a.png')).rejects.toThrow('http or https');
+			await expect(use('https://images.example/page.html')).rejects.toThrow('JPEG, PNG or WebP');
+			await expect(use('https://images.example/big.png')).rejects.toThrow('under 2 MB');
+			await expect(use('https://images.example/missing.png')).rejects.toThrow('answered 404');
+			await expect(use('https://images.example/cover.webp', 'bad-token')).rejects.toThrow();
 		});
 	});
 

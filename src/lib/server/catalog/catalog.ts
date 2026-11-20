@@ -111,6 +111,19 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 			.where(eq(albums.id, albumId));
 	}
 
+	/** Checks an image from the Owner (type, size, Album), then makes it the Cover. */
+	async function saveUpload(albumId: number, body: ArrayBuffer, contentType: string) {
+		if (!UPLOAD_TYPES.includes(contentType)) throw new Error('Use a JPEG, PNG or WebP image');
+		if (body.byteLength === 0 || body.byteLength > MAX_UPLOAD_BYTES) {
+			throw new Error('The image must be under 2 MB');
+		}
+		const album = (
+			await db.select({ id: albums.id }).from(albums).where(eq(albums.id, albumId))
+		)[0];
+		if (!album) throw new Error('Album not found');
+		await storeCover(album.id, body, contentType);
+	}
+
 	async function owner(token: string) {
 		if (!env.JWT_SECRET || !(await tokenIsValid(token, env.JWT_SECRET)))
 			throw new UnauthorizedError();
@@ -422,16 +435,26 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 
 		async uploadCover(token, input) {
 			await owner(token);
-			if (!UPLOAD_TYPES.includes(input.contentType))
-				throw new Error('Use a JPEG, PNG or WebP image');
-			if (input.body.byteLength === 0 || input.body.byteLength > MAX_UPLOAD_BYTES) {
-				throw new Error('The image must be under 2 MB');
+			await saveUpload(input.albumId, input.body, input.contentType);
+		},
+
+		async uploadCoverFromUrl(token, input) {
+			await owner(token);
+			let url: URL;
+			try {
+				url = new URL(input.url);
+			} catch {
+				throw new Error('This is not a web address');
 			}
-			const album = (
-				await db.select({ id: albums.id }).from(albums).where(eq(albums.id, input.albumId))
-			)[0];
-			if (!album) throw new Error('Album not found');
-			await storeCover(album.id, input.body, input.contentType);
+			if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+				throw new Error('Use an http or https address');
+			}
+			const response = await fetch(url, { headers: { 'User-Agent': 'vinyles/0.1' } });
+			if (!response.ok) throw new Error(`The address answered ${response.status}`);
+			const length = Number(response.headers.get('content-length'));
+			if (length > MAX_UPLOAD_BYTES) throw new Error('The image must be under 2 MB');
+			const contentType = (response.headers.get('content-type') ?? '').split(';')[0].trim();
+			await saveUpload(input.albumId, await response.arrayBuffer(), contentType);
 		},
 
 		async login(password) {
