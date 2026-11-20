@@ -805,6 +805,105 @@ describe('Import', () => {
 			expect(albums.find((a) => a.id === unmatched[0].albumId)?.releaseYear).toBe(1997);
 		});
 
+		describe('rerun and replace', () => {
+			const lookUpEverything = async (options: { rerun?: boolean; replace?: boolean }) => {
+				let progress = await catalog.lookupNext(token, { size: 2, ...options });
+				while (progress.done < progress.total) {
+					progress = await catalog.lookupNext(token, {
+						size: 2,
+						after: progress.after,
+						...options
+					});
+				}
+			};
+			const albumsByTitle = async () => {
+				const all = [
+					...(await catalog.listRecords()).records.map((r) => r.album),
+					...(await catalog.listWishlist()).items.map((i) => i.album)
+				];
+				return (title: string) => all.find((a) => a.title === title)!;
+			};
+
+			beforeEach(async () => {
+				await catalog.lookupNext(token, { size: 10 });
+				fakeAlbums.length = 0;
+				fakeAlbums.push(
+					{ artist: 'Air', title: 'Moon Safari', year: 1999, mbid: 'm1b', cover: 'new-moon' },
+					{ artist: 'Daft Punk', title: 'Discovery', year: 2001, mbid: 'm2', cover: 'new-disc' }
+				);
+			});
+
+			it('does not touch looked-up Albums by default', async () => {
+				const before = calls.length;
+				await catalog.lookupNext(token, { size: 10 });
+				expect(calls).toHaveLength(before);
+			});
+
+			it('updates year, match and Cover of every Album', async () => {
+				const old = (await albumsByTitle())('Moon Safari');
+				await lookUpEverything({ rerun: true });
+				const moon = (await albumsByTitle())('Moon Safari');
+				expect(moon.releaseYear).toBe(1999);
+				expect(moon.coverVersion).toBeGreaterThan(old.coverVersion);
+				expect(await (await env.COVERS.get(moon.coverKey!))?.text()).toBe('new-moon');
+				const discovery = (await albumsByTitle())('Discovery');
+				expect(await (await env.COVERS.get(discovery.coverKey!))?.text()).toBe('new-disc');
+				expect(musicBrainzCalls().length).toBeGreaterThanOrEqual(8);
+			});
+
+			async function chooseMoonCover() {
+				// Candidates come from the stored match (m1), which the new fakes no longer answer to.
+				const stored = {
+					artist: 'Air',
+					title: 'Moon Safari',
+					year: 1998,
+					mbid: 'm1',
+					cover: 'moon-cover',
+					releases: [{ id: 'rel-x', cover: 'chosen' }]
+				};
+				fakeAlbums.push(stored);
+				const id = (await albumsByTitle())('Moon Safari').id;
+				const [candidate] = await catalog.listCoverCandidates(token, id);
+				await catalog.pickCover(token, {
+					albumId: id,
+					candidateId: candidate.id,
+					source: candidate.source
+				});
+				fakeAlbums.splice(fakeAlbums.indexOf(stored), 1);
+				return id;
+			}
+
+			it('keeps an Owner-chosen Cover on rerun but still updates its year', async () => {
+				const id = await chooseMoonCover();
+				const chosen = (await albumsByTitle())('Moon Safari');
+				await lookUpEverything({ rerun: true });
+				const moon = (await albumsByTitle())('Moon Safari');
+				expect(moon.id).toBe(id);
+				expect(moon.releaseYear).toBe(1999);
+				expect(moon.coverChosen).toBe(true);
+				expect(moon.coverVersion).toBe(chosen.coverVersion);
+				expect(await (await env.COVERS.get(moon.coverKey!))?.text()).toBe('chosen');
+			});
+
+			it('overwrites and unmarks an Owner-chosen Cover on replace', async () => {
+				await chooseMoonCover();
+				const chosen = (await albumsByTitle())('Moon Safari');
+				await lookUpEverything({ rerun: true, replace: true });
+				const moon = (await albumsByTitle())('Moon Safari');
+				expect(moon.coverChosen).toBe(false);
+				expect(moon.coverVersion).toBeGreaterThan(chosen.coverVersion);
+				expect(await (await env.COVERS.get(moon.coverKey!))?.text()).toBe('new-moon');
+			});
+
+			it('refuses replace without rerun', async () => {
+				const before = calls.length;
+				await expect(catalog.lookupNext(token, { size: 10, replace: true })).rejects.toThrow(
+					/replace.*rerun/i
+				);
+				expect(calls).toHaveLength(before);
+			});
+		});
+
 		it('refuses a year for an unknown Album or a year that is not a year', async () => {
 			await expect(
 				catalog.saveYears(token, { years: [{ albumId: 999, releaseYear: 1990 }] })

@@ -211,11 +211,19 @@ export interface ImportRowsResult {
 export interface ImportProgress {
 	total: number;
 	done: number;
+	/** Rerun only: the last Album id looked up. Pass it back as `after` for the next batch. */
+	after?: number;
 }
 
 export interface LookupBatchInput {
 	/** Albums to look up in this request. Keep small: subrequest limit and one MusicBrainz request per second. */
 	size: number;
+	/** Look up every Album again, not only the ones not looked up yet. Keeps Owner-chosen Covers. */
+	rerun?: boolean;
+	/** Also overwrite Owner-chosen Covers. Only valid with `rerun`. */
+	replace?: boolean;
+	/** Rerun only: continue after this Album id (the `after` of the previous batch). */
+	after?: number;
 }
 
 export interface UnmatchedAlbum {
@@ -268,7 +276,7 @@ export interface Catalog {
 
 	// Import (Owner, once)
 	importRows(token: string, input: ImportRowsInput): Promise<ImportRowsResult>;
-	/** Looks up the next batch of Albums that have not been looked up yet. */
+	/** Looks up the next batch of Albums: those not looked up yet, or with `rerun` every Album after `after`. */
 	lookupNext(token: string, input: LookupBatchInput): Promise<ImportProgress>;
 	importProgress(token: string): Promise<ImportProgress>;
 	listUnmatchedAlbums(token: string): Promise<UnmatchedAlbum[]>;
