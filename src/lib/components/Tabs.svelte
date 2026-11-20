@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { cn } from '#lib/utils.ts';
+	import { cn } from '#lib/utils';
 	import { buttonVariants } from './ui/button/index.js';
 
 	let { current }: { current: 'collection' | 'wishlist' } = $props();

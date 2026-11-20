@@ -284,6 +284,14 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 			return all.sort((a, b) => compare(a.name, b.name));
 		},
 
+		async getCover(albumId) {
+			const album = (await db.select({ coverKey: albums.coverKey }).from(albums).where(eq(albums.id, albumId)))[0];
+			if (!album?.coverKey) return null;
+			const object = await env.COVERS.get(album.coverKey);
+			if (!object) return null;
+			return { body: object.body, contentType: object.httpMetadata?.contentType ?? 'image/jpeg' };
+		},
+
 		async login(password) {
 			if (!(await passwordMatches(password, env.OWNER_PASSWORD))) return { ok: false, error: 'wrong-password' };
 			return { ok: true, token: await issueToken(env.JWT_SECRET) };

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { initials, tileClass } from '#lib/tile.ts';
+	import { initials, tileClass } from '#lib/tile';
 	import DesireDots from './DesireDots.svelte';
 
 	let {

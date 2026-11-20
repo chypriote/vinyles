@@ -23,7 +23,7 @@
 
 <script lang="ts">
 	import type { HTMLAnchorAttributes, HTMLButtonAttributes } from 'svelte/elements';
-	import { cn, type WithElementRef } from '#lib/utils.ts';
+	import { cn, type WithElementRef } from '#lib/utils';
 
 	let {
 		class: className,

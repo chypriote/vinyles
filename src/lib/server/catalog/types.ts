@@ -51,6 +51,11 @@ export interface WishlistItemView {
 	priceQuotes: PriceQuote[];
 }
 
+export interface CoverImage {
+	body: ReadableStream;
+	contentType: string;
+}
+
 // --- Lists -------------------------------------------------------------------
 
 export type SortKey = 'artist' | 'album' | 'year';
@@ -211,6 +216,8 @@ export interface Catalog {
 	listWishlist(input?: ListWishlistInput): Promise<ListWishlistResult>;
 	listStores(): Promise<Store[]>;
 	listArtists(): Promise<Artist[]>;
+	/** The Cover image of an Album, or null when it has none. */
+	getCover(albumId: number): Promise<CoverImage | null>;
 
 	// Owner login
 	login(password: string): Promise<LoginResult>;

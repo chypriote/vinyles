@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { HTMLSelectAttributes } from 'svelte/elements';
-	import { cn } from '#lib/utils.ts';
+	import { cn } from '#lib/utils';
 
 	let {
 		ref = $bindable(null),
