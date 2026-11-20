@@ -15,6 +15,8 @@
 	let error = $state<string | null>(null);
 	let years = $state<Record<number, string>>({});
 	let saving = $state(false);
+	let uploading = $state(false);
+	let uploaded = $state<string | null>(null);
 
 	const finished = $derived(shown.total > 0 && shown.done >= shown.total);
 
@@ -45,6 +47,32 @@
 		}
 	}
 
+	/** Posts the cleaned sheet rows (JSON file) to the import endpoint. */
+	async function uploadRows(event: Event) {
+		const file = (event.currentTarget as HTMLInputElement).files?.[0];
+		if (!file) return;
+		uploading = true;
+		error = null;
+		uploaded = null;
+		try {
+			const response = await fetch('/api/import/rows', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: await file.text()
+			});
+			if (!response.ok) {
+				error = ((await response.json()) as { error?: string }).error ?? 'Upload failed';
+				return;
+			}
+			uploaded = 'Rows uploaded';
+			await invalidateAll();
+		} catch {
+			error = 'Upload failed';
+		} finally {
+			uploading = false;
+		}
+	}
+
 	async function saveYears() {
 		const list = [];
 		for (const album of unmatched) {
@@ -69,6 +97,16 @@
 	<h1>Import</h1>
 
 	<section class="flex flex-col gap-3">
+		<label class="flex flex-col gap-1 text-sm font-medium">
+			Upload rows.json
+			<input
+				type="file"
+				accept=".json,application/json"
+				disabled={uploading}
+				onchange={uploadRows}
+			/>
+		</label>
+		{#if uploaded}<p class="text-sm">{uploaded}</p>{/if}
 		<p class="text-sm font-medium" aria-live="polite">Imported {shown.done} of {shown.total}</p>
 		<div>
 			<Button disabled={running || finished || shown.total === 0} onclick={runLookup}>
