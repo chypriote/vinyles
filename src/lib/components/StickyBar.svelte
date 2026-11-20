@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
 	import Tabs from './Tabs.svelte';
+	import ThemeToggle from './ThemeToggle.svelte';
 
 	let {
 		title,
@@ -29,6 +30,7 @@
 		<h1>{title}</h1>
 		{@render chips?.()}
 		{@render login?.()}
+		<ThemeToggle />
 	</div>
 	<div class="flex flex-wrap items-center gap-2">
 		<Tabs {current} />
