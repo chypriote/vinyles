@@ -48,16 +48,18 @@
 				class="flex size-full items-center justify-center text-2xl font-extrabold text-primary-foreground {tileClass(
 					artist
 				)}"
-				aria-hidden="true">{initials(artist)}</span
+				aria-hidden="true"
 			>
+				{initials(artist)}
+			</span>
 		{/if}
 	</span>
-	<span class="block text-xs leading-tight font-extrabold break-words text-foreground"
-		>{album}</span
-	>
-	<span class="block text-[11px] leading-tight font-medium break-words text-muted-foreground"
-		>{artist}</span
-	>
+	<span class="block text-xs leading-tight font-extrabold break-words text-foreground">
+		{album}
+	</span>
+	<span class="block text-[11px] leading-tight font-medium break-words text-muted-foreground">
+		{artist}
+	</span>
 	{#if desire}
 		<DesireDots value={desire} />
 	{/if}

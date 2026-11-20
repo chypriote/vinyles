@@ -10,7 +10,9 @@ const BATCH_SIZE = 5;
 /** One lookup batch per request. The page calls it until `done` reaches `total`. */
 export const POST: RequestHandler = async ({ platform, cookies }) => {
 	try {
-		return json(await catalogFromPlatform(platform).lookupNext(ownerToken(cookies), { size: BATCH_SIZE }));
+		return json(
+			await catalogFromPlatform(platform).lookupNext(ownerToken(cookies), { size: BATCH_SIZE })
+		);
 	} catch (error) {
 		return endpointError(error);
 	}

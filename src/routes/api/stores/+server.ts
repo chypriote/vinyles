@@ -8,7 +8,9 @@ import type { RequestHandler } from './$types';
 export const POST: RequestHandler = async ({ request, platform, cookies }) => {
 	try {
 		const { name } = (await request.json()) as { name?: string };
-		const store = await catalogFromPlatform(platform).addStore(ownerToken(cookies), { name: String(name ?? '') });
+		const store = await catalogFromPlatform(platform).addStore(ownerToken(cookies), {
+			name: String(name ?? '')
+		});
 		return json(store);
 	} catch (error) {
 		return endpointError(error);

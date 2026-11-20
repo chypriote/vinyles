@@ -85,7 +85,9 @@
 			}}
 		>
 			{#each [3, 2, 1] as level (level)}
-				<ToggleGroupItem value={String(level)}><DesireDots value={level as Desire} /></ToggleGroupItem>
+				<ToggleGroupItem value={String(level)}>
+					<DesireDots value={level as Desire} />
+				</ToggleGroupItem>
 			{/each}
 		</ToggleGroup>
 	</div>
@@ -99,7 +101,9 @@
 			</div>
 		{/each}
 		<div>
-			<Button onclick={() => (quotes = [...quotes, { key: nextKey++, storeId: '', price: '' }])}>Add a quote</Button>
+			<Button onclick={() => (quotes = [...quotes, { key: nextKey++, storeId: '', price: '' }])}>
+				Add a quote
+			</Button>
 		</div>
 	</div>
 	{#if alreadyOwned}

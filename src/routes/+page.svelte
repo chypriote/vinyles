@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { SvelteURLSearchParams } from 'svelte/reactivity';
 	import type { PageProps } from './$types';
 	import type { WithCoverUrl } from '#lib/covers';
 	import type { RecordView } from '#lib/server/catalog/types';
@@ -42,12 +43,12 @@
 	const records = $derived(filtered ?? data.records);
 
 	$effect(() => {
-		data.records; // refetch the filtered list after a change
+		void data.records; // refetch the filtered list after a change
 		if (!isFiltering && sort === 'artist') {
 			filtered = null;
 			return;
 		}
-		const query = new URLSearchParams({ sort });
+		const query = new SvelteURLSearchParams({ sort });
 		if (search.trim()) query.set('search', search.trim());
 		if (artist) query.set('artist', artist);
 		const controller = new AbortController();
@@ -100,7 +101,12 @@
 		<Chip tone="success" label="spent" value={formatCents(data.totals.totalSpentCents)} />
 	{/snippet}
 	{#snippet action()}
-		<OwnerAction isOwner={data.isOwner} current="collection" artists={data.artists} stores={data.stores} />
+		<OwnerAction
+			isOwner={data.isOwner}
+			current="collection"
+			artists={data.artists}
+			stores={data.stores}
+		/>
 	{/snippet}
 	{#snippet controls()}
 		<SearchField bind:value={search} label="Search artist or album" placeholder="Search" />
@@ -172,8 +178,10 @@
 					onclick={() => {
 						open = false;
 						editOpen = true;
-					}}>Edit</Button
+					}}
 				>
+					Edit
+				</Button>
 			{/if}
 		{/snippet}
 	</Popup>

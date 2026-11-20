@@ -21,7 +21,13 @@ function fromBase64Url(text: string): Uint8Array<ArrayBuffer> {
 }
 
 function hmacKey(secret: string, usage: KeyUsage) {
-	return crypto.subtle.importKey('raw', encoder.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, [usage]);
+	return crypto.subtle.importKey(
+		'raw',
+		encoder.encode(secret),
+		{ name: 'HMAC', hash: 'SHA-256' },
+		false,
+		[usage]
+	);
 }
 
 export async function passwordMatches(given: string, expected: string): Promise<boolean> {
@@ -30,7 +36,9 @@ export async function passwordMatches(given: string, expected: string): Promise<
 		crypto.subtle.digest('SHA-256', encoder.encode(expected))
 	]);
 	// Workers extension, missing from the DOM typings.
-	const subtle = crypto.subtle as SubtleCrypto & { timingSafeEqual(a: BufferSource, b: BufferSource): boolean };
+	const subtle = crypto.subtle as SubtleCrypto & {
+		timingSafeEqual(a: BufferSource, b: BufferSource): boolean;
+	};
 	return subtle.timingSafeEqual(a, b);
 }
 
@@ -41,7 +49,11 @@ export async function issueToken(secret: string): Promise<string> {
 	const body = toBase64Url(
 		encoder.encode(JSON.stringify({ sub: 'owner', iat: now, exp: now + TOKEN_LIFETIME_SECONDS }))
 	);
-	const signature = await crypto.subtle.sign('HMAC', await hmacKey(secret, 'sign'), encoder.encode(`${head}.${body}`));
+	const signature = await crypto.subtle.sign(
+		'HMAC',
+		await hmacKey(secret, 'sign'),
+		encoder.encode(`${head}.${body}`)
+	);
 	return `${head}.${body}.${toBase64Url(new Uint8Array(signature))}`;
 }
 

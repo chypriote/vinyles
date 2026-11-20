@@ -1,0 +1,10 @@
+node_modules
+.svelte-kit
+.wrangler
+build
+package-lock.json
+drizzle
+worker-configuration.d.ts
+src/lib/components/ui
+static
+*.md

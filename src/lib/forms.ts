@@ -10,7 +10,11 @@ export async function postAction(action: string, payload: unknown): Promise<Outc
 	const body = new FormData();
 	body.set('payload', JSON.stringify(payload));
 	try {
-		const response = await fetch(action, { method: 'POST', body, headers: { 'x-sveltekit-action': 'true' } });
+		const response = await fetch(action, {
+			method: 'POST',
+			body,
+			headers: { 'x-sveltekit-action': 'true' }
+		});
 		const result = deserialize(await response.text());
 		if (result.type === 'success') {
 			const alreadyOwned = result.data?.alreadyOwned === true;
@@ -31,7 +35,10 @@ export async function addStore(name: string): Promise<Store> {
 		headers: { 'content-type': 'application/json' },
 		body: JSON.stringify({ name })
 	});
-	if (!response.ok) throw new Error(((await response.json()) as { error?: string }).error ?? 'Could not add the store');
+	if (!response.ok)
+		throw new Error(
+			((await response.json()) as { error?: string }).error ?? 'Could not add the store'
+		);
 	const store = (await response.json()) as Store;
 	await invalidateAll();
 	return store;
@@ -46,7 +53,13 @@ export interface AcquisitionState {
 }
 
 export function emptyAcquisition(): AcquisitionState {
-	return { kind: 'purchase', date: new Date().toISOString().slice(0, 10), storeId: '', price: '', giver: '' };
+	return {
+		kind: 'purchase',
+		date: new Date().toISOString().slice(0, 10),
+		storeId: '',
+		price: '',
+		giver: ''
+	};
 }
 
 /** The form state as Catalog input, or an error message to show. */

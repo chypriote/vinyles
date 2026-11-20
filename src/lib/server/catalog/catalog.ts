@@ -48,7 +48,8 @@ function isRealDate(value: unknown): boolean {
 
 const clean = (value: string) => value.trim();
 const cleanOrNull = (value: string | null | undefined) => clean(value ?? '') || null;
-const isCents = (value: unknown): value is number => Number.isInteger(value) && (value as number) >= 0;
+const isCents = (value: unknown): value is number =>
+	Number.isInteger(value) && (value as number) >= 0;
 const isDesire = (value: unknown): value is Desire => value === 1 || value === 2 || value === 3;
 
 function required(value: string, what: string) {
@@ -78,7 +79,8 @@ function byYear(a: AlbumSummary, b: AlbumSummary) {
 
 function albumComparator(sort: SortKey | undefined) {
 	if (sort === 'album') {
-		return (a: AlbumSummary, b: AlbumSummary) => compare(a.title, b.title) || compare(a.artist, b.artist) || a.id - b.id;
+		return (a: AlbumSummary, b: AlbumSummary) =>
+			compare(a.title, b.title) || compare(a.artist, b.artist) || a.id - b.id;
 	}
 	return sort === 'year' ? byYear : byAlbum;
 }
@@ -88,7 +90,8 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 	const intervalMs = options.lookupIntervalMs ?? 1000;
 
 	async function owner(token: string) {
-		if (!env.JWT_SECRET || !(await tokenIsValid(token, env.JWT_SECRET))) throw new UnauthorizedError();
+		if (!env.JWT_SECRET || !(await tokenIsValid(token, env.JWT_SECRET)))
+			throw new UnauthorizedError();
 	}
 
 	const run = (statements: unknown[]) =>
@@ -140,13 +143,22 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 
 	async function loadWishlist(id?: number): Promise<WishlistItemView[]> {
 		const rows = await db
-			.select({ id: wishlistItems.id, album: albumColumns, variant: wishlistItems.variant, desire: wishlistItems.desire })
+			.select({
+				id: wishlistItems.id,
+				album: albumColumns,
+				variant: wishlistItems.variant,
+				desire: wishlistItems.desire
+			})
 			.from(wishlistItems)
 			.innerJoin(albums, eq(wishlistItems.albumId, albums.id))
 			.innerJoin(artists, eq(albums.artistId, artists.id))
 			.where(id === undefined ? undefined : eq(wishlistItems.id, id));
 		const quoteRows = await db
-			.select({ itemId: priceQuotes.wishlistItemId, store: { id: stores.id, name: stores.name }, priceCents: priceQuotes.priceCents })
+			.select({
+				itemId: priceQuotes.wishlistItemId,
+				store: { id: stores.id, name: stores.name },
+				priceCents: priceQuotes.priceCents
+			})
 			.from(priceQuotes)
 			.innerJoin(stores, eq(priceQuotes.storeId, stores.id));
 		const quotesByItem = new Map<number, PriceQuote[]>();
@@ -160,7 +172,9 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 			album: row.album,
 			variant: row.variant,
 			desire: row.desire as Desire,
-			priceQuotes: (quotesByItem.get(row.id) ?? []).sort((a, b) => compare(a.store.name, b.store.name))
+			priceQuotes: (quotesByItem.get(row.id) ?? []).sort((a, b) =>
+				compare(a.store.name, b.store.name)
+			)
 		}));
 	}
 
@@ -206,7 +220,9 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 		let coverKey: string | null = null;
 		if (cover) {
 			coverKey = `covers/${albumId}`;
-			await env.COVERS.put(coverKey, cover.body, { httpMetadata: { contentType: cover.contentType } });
+			await env.COVERS.put(coverKey, cover.body, {
+				httpMetadata: { contentType: cover.contentType }
+			});
 		}
 		await db
 			.update(albums)
@@ -219,8 +235,15 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 		const artist = required(artistName, 'Artist');
 		const title = required(albumTitle, 'Album');
 		await db.insert(artists).values({ name: artist }).onConflictDoNothing();
-		const [{ id: artistId }] = await db.select({ id: artists.id }).from(artists).where(eq(artists.name, artist));
-		const created = await db.insert(albums).values({ artistId, title }).onConflictDoNothing().returning({ id: albums.id });
+		const [{ id: artistId }] = await db
+			.select({ id: artists.id })
+			.from(artists)
+			.where(eq(artists.name, artist));
+		const created = await db
+			.insert(albums)
+			.values({ artistId, title })
+			.onConflictDoNothing()
+			.returning({ id: albums.id });
 		if (created.length) {
 			try {
 				await lookUpAlbum(created[0].id, artist, title);
@@ -252,7 +275,10 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 
 	async function progress(): Promise<ImportProgress> {
 		const [{ total }] = await db.select({ total: count() }).from(albums);
-		const [{ done }] = await db.select({ done: count() }).from(albums).where(isNotNull(albums.musicbrainzId));
+		const [{ done }] = await db
+			.select({ done: count() })
+			.from(albums)
+			.where(isNotNull(albums.musicbrainzId));
 		return { total, done };
 	}
 
@@ -261,13 +287,16 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 			const all = await loadRecords();
 			const sort: RecordSortKey = input.sort ?? 'artist';
 			const byDate = (a: RecordView, b: RecordView) =>
-				b.acquisition.date.localeCompare(a.acquisition.date) || byAlbum(a.album, b.album) || a.id - b.id;
+				b.acquisition.date.localeCompare(a.acquisition.date) ||
+				byAlbum(a.album, b.album) ||
+				a.id - b.id;
 			const album = albumComparator(sort === 'acquired' ? undefined : sort);
 			const shown = all
 				.filter((r) => matchesFilters(r.album.artist, r.album.title, input))
 				.sort(sort === 'acquired' ? byDate : (a, b) => album(a.album, b.album) || a.id - b.id);
 			let totalSpentCents = 0;
-			for (const r of all) if (r.acquisition.kind === 'purchase') totalSpentCents += r.acquisition.priceCents;
+			for (const r of all)
+				if (r.acquisition.kind === 'purchase') totalSpentCents += r.acquisition.priceCents;
 			return { records: shown, totals: { recordCount: all.length, totalSpentCents } };
 		},
 
@@ -276,7 +305,11 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 			const desires = input.desires?.length ? input.desires : null;
 			const album = albumComparator(input.sort);
 			const items = all
-				.filter((i) => matchesFilters(i.album.artist, i.album.title, input) && (!desires || desires.includes(i.desire)))
+				.filter(
+					(i) =>
+						matchesFilters(i.album.artist, i.album.title, input) &&
+						(!desires || desires.includes(i.desire))
+				)
 				.sort((a, b) => album(a.album, b.album) || a.id - b.id);
 			return { items, count: all.length };
 		},
@@ -292,7 +325,9 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 		},
 
 		async getCover(albumId) {
-			const album = (await db.select({ coverKey: albums.coverKey }).from(albums).where(eq(albums.id, albumId)))[0];
+			const album = (
+				await db.select({ coverKey: albums.coverKey }).from(albums).where(eq(albums.id, albumId))
+			)[0];
 			if (!album?.coverKey) return null;
 			const object = await env.COVERS.get(album.coverKey);
 			if (!object) return null;
@@ -300,7 +335,12 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 		},
 
 		async login(password) {
-			if (!env.OWNER_PASSWORD || !env.JWT_SECRET || !password || !(await passwordMatches(password, env.OWNER_PASSWORD))) {
+			if (
+				!env.OWNER_PASSWORD ||
+				!env.JWT_SECRET ||
+				!password ||
+				!(await passwordMatches(password, env.OWNER_PASSWORD))
+			) {
 				return { ok: false, error: 'wrong-password' };
 			}
 			return { ok: true, token: await issueToken(env.JWT_SECRET) };
@@ -369,7 +409,10 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 
 		async gotIt(token, input) {
 			await owner(token);
-			const [item] = await db.select().from(wishlistItems).where(eq(wishlistItems.id, input.wishlistItemId));
+			const [item] = await db
+				.select()
+				.from(wishlistItems)
+				.where(eq(wishlistItems.id, input.wishlistItemId));
 			if (!item) throw new Error('Wishlist Item not found');
 			const acquisition = await checkAcquisition(input.acquisition);
 			const [[{ id }]] = (await db.batch([
@@ -390,7 +433,9 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 		async importRows(token, input) {
 			await owner(token);
 			const [{ held }] = await db
-				.select({ held: sql<number>`(SELECT count(*) FROM ${records}) + (SELECT count(*) FROM ${wishlistItems})` })
+				.select({
+					held: sql<number>`(SELECT count(*) FROM ${records}) + (SELECT count(*) FROM ${wishlistItems})`
+				})
 				.from(sql`(SELECT 1)`);
 			if (held > 0) throw new Error('The Collection or Wishlist already has entries');
 			const collection = input.collection.map((row) => {
@@ -399,22 +444,34 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 				const acquisition = row.acquisition;
 				if (acquisition.kind === 'purchase') {
 					required(acquisition.store, 'Store');
-					if (!isCents(acquisition.priceCents)) throw new Error(`Bad price for ${row.artist} - ${row.album}`);
+					if (!isCents(acquisition.priceCents))
+						throw new Error(`Bad price for ${row.artist} - ${row.album}`);
 				}
-				return { ...row, artist: required(row.artist, 'Artist'), album: required(row.album, 'Album') };
+				return {
+					...row,
+					artist: required(row.artist, 'Artist'),
+					album: required(row.album, 'Album')
+				};
 			});
 			const wishlist = input.wishlist.map((row) => {
 				if (!isDesire(row.desire)) throw new Error(`Bad Desire for ${row.artist} - ${row.album}`);
 				// Prices of zero, below zero or that are not a price (PTC, ??) are not Price Quotes.
 				const quotes = new Map<string, number>();
 				for (const q of row.priceQuotes ?? []) {
-					if (Number.isInteger(q.priceCents) && q.priceCents > 0 && clean(q.store)) quotes.set(clean(q.store), q.priceCents);
+					if (Number.isInteger(q.priceCents) && q.priceCents > 0 && clean(q.store))
+						quotes.set(clean(q.store), q.priceCents);
 				}
-				return { ...row, artist: required(row.artist, 'Artist'), album: required(row.album, 'Album'), quotes };
+				return {
+					...row,
+					artist: required(row.artist, 'Artist'),
+					album: required(row.album, 'Album'),
+					quotes
+				};
 			});
 
 			const storeNames = new Set<string>();
-			for (const r of collection) if (r.acquisition.kind === 'purchase') storeNames.add(clean(r.acquisition.store));
+			for (const r of collection)
+				if (r.acquisition.kind === 'purchase') storeNames.add(clean(r.acquisition.store));
 			for (const r of wishlist) for (const name of r.quotes.keys()) storeNames.add(name);
 			const artistNames = new Set([...collection, ...wishlist].map((r) => r.artist));
 
@@ -427,16 +484,23 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 
 			const albumKeys = new Map<string, { artistId: number; title: string }>();
 			for (const r of [...collection, ...wishlist]) {
-				albumKeys.set(`${r.artist}\u0000${r.album}`, { artistId: artistIds.get(r.artist)!, title: r.album });
+				albumKeys.set(`${r.artist}\u0000${r.album}`, {
+					artistId: artistIds.get(r.artist)!,
+					title: r.album
+				});
 			}
-			await run([...albumKeys.values()].map((a) => db.insert(albums).values(a).onConflictDoNothing()));
-			const albumIds = new Map(
-				(await db.select({ id: albums.id, artistId: albums.artistId, title: albums.title }).from(albums)).map((a) => [
-					`${a.artistId}\u0000${a.title}`,
-					a.id
-				])
+			await run(
+				[...albumKeys.values()].map((a) => db.insert(albums).values(a).onConflictDoNothing())
 			);
-			const albumId = (artist: string, title: string) => albumIds.get(`${artistIds.get(artist)}\u0000${title}`)!;
+			const albumIds = new Map(
+				(
+					await db
+						.select({ id: albums.id, artistId: albums.artistId, title: albums.title })
+						.from(albums)
+				).map((a) => [`${a.artistId}\u0000${a.title}`, a.id])
+			);
+			const albumId = (artist: string, title: string) =>
+				albumIds.get(`${artistIds.get(artist)}\u0000${title}`)!;
 
 			await run(
 				collection.map((r) =>
@@ -445,7 +509,8 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 						variant: cleanOrNull(r.variant),
 						acquisitionKind: r.acquisition.kind,
 						acquisitionDate: r.date,
-						storeId: r.acquisition.kind === 'purchase' ? storeIds.get(clean(r.acquisition.store))! : null,
+						storeId:
+							r.acquisition.kind === 'purchase' ? storeIds.get(clean(r.acquisition.store))! : null,
 						priceCents: r.acquisition.kind === 'purchase' ? r.acquisition.priceCents : null,
 						giver: r.acquisition.kind === 'gift' ? cleanOrNull(r.acquisition.giver) : null
 					})
@@ -457,7 +522,11 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 					wishlist.map((r) =>
 						db
 							.insert(wishlistItems)
-							.values({ albumId: albumId(r.artist, r.album), variant: cleanOrNull(r.variant), desire: r.desire })
+							.values({
+								albumId: albumId(r.artist, r.album),
+								variant: cleanOrNull(r.variant),
+								desire: r.desire
+							})
 							.returning({ id: wishlistItems.id })
 					)
 				)) as unknown as { id: number }[][];
@@ -526,7 +595,11 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 			if (!ids.length) return;
 			const known = await db.select({ id: albums.id }).from(albums).where(inArray(albums.id, ids));
 			if (known.length !== new Set(ids).size) throw new Error('Album not found');
-			await run(input.years.map((y) => db.update(albums).set({ releaseYear: y.releaseYear }).where(eq(albums.id, y.albumId))));
+			await run(
+				input.years.map((y) =>
+					db.update(albums).set({ releaseYear: y.releaseYear }).where(eq(albums.id, y.albumId))
+				)
+			);
 		}
 	};
 }

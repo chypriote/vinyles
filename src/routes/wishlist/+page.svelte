@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { SvelteURLSearchParams } from 'svelte/reactivity';
 	import type { PageProps } from './$types';
 	import type { WithCoverUrl } from '#lib/covers';
 	import type { WishlistItemView } from '#lib/server/catalog/types';
@@ -45,12 +46,12 @@
 	const items = $derived(filtered ?? data.items);
 
 	$effect(() => {
-		data.items; // refetch the filtered list after a change
+		void data.items; // refetch the filtered list after a change
 		if (!isFiltering && sort === 'artist') {
 			filtered = null;
 			return;
 		}
-		const query = new URLSearchParams({ sort, desires: desires.join(',') });
+		const query = new SvelteURLSearchParams({ sort, desires: desires.join(',') });
 		if (search.trim()) query.set('search', search.trim());
 		if (artist) query.set('artist', artist);
 		const controller = new AbortController();
@@ -109,7 +110,12 @@
 		<Chip tone="info" label="items" value={String(data.count)} />
 	{/snippet}
 	{#snippet action()}
-		<OwnerAction isOwner={data.isOwner} current="wishlist" artists={data.artists} stores={data.stores} />
+		<OwnerAction
+			isOwner={data.isOwner}
+			current="wishlist"
+			artists={data.artists}
+			stores={data.stores}
+		/>
 	{/snippet}
 	{#snippet controls()}
 		<SearchField bind:value={search} label="Search artist or album" placeholder="Search" />
@@ -178,8 +184,10 @@
 					onclick={() => {
 						open = false;
 						gotItOpen = true;
-					}}>Got it</Button
+					}}
 				>
+					Got it
+				</Button>
 				<Button onclick={drop}>Drop</Button>
 			{/if}
 		{/snippet}
@@ -190,7 +198,11 @@
 	<Popup bind:open={gotItOpen} album={`Got ${selected.album.title}`}>
 		{#snippet details()}
 			{#if selected}
-				<GotItForm wishlistItemId={selected.id} stores={data.stores} onDone={() => (gotItOpen = false)} />
+				<GotItForm
+					wishlistItemId={selected.id}
+					stores={data.stores}
+					onDone={() => (gotItOpen = false)}
+				/>
 			{/if}
 		{/snippet}
 	</Popup>

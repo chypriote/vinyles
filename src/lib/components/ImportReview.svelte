@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import { goto, invalidateAll } from '$app/navigation';
 	import { postAction } from '#lib/forms';
 	import { initials, tileClass } from '#lib/tile';
@@ -59,7 +60,7 @@
 		saving = true;
 		const outcome = await postAction('?/saveYears', { years: list });
 		saving = false;
-		if (outcome.ok) await goto('/');
+		if (outcome.ok) await goto(resolve('/'));
 		else error = outcome.error;
 	}
 </script>
@@ -70,7 +71,9 @@
 	<section class="flex flex-col gap-3">
 		<p class="text-sm font-medium" aria-live="polite">Imported {shown.done} of {shown.total}</p>
 		<div>
-			<Button disabled={running || finished || shown.total === 0} onclick={runLookup}>Run lookup</Button>
+			<Button disabled={running || finished || shown.total === 0} onclick={runLookup}>
+				Run lookup
+			</Button>
 		</div>
 	</section>
 
@@ -84,8 +87,10 @@
 							aria-hidden="true"
 							class="flex size-14 shrink-0 items-center justify-center rounded-(--cover-radius) text-lg font-extrabold text-primary-foreground {tileClass(
 								album.artist
-							)}">{initials(album.artist)}</span
+							)}"
 						>
+							{initials(album.artist)}
+						</span>
 						<div class="flex min-w-0 flex-1 flex-col">
 							<span class="text-sm font-bold">{album.title}</span>
 							<span class="text-sm text-muted-foreground">{album.artist}</span>

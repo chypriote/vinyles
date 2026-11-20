@@ -25,7 +25,11 @@ async function run<T>(
 		return fail(400, { error: 'Unreadable form' });
 	}
 	try {
-		const extra = await work(catalogFromPlatform(event.platform), ownerToken(event.cookies), payload);
+		const extra = await work(
+			catalogFromPlatform(event.platform),
+			ownerToken(event.cookies),
+			payload
+		);
 		return { ok: true, ...extra };
 	} catch (error) {
 		if (error instanceof UnauthorizedError) return fail(401, { error: 'Please log in again' });
@@ -68,7 +72,8 @@ export const ownerActions = {
 
 /** Maps an Owner-only endpoint failure to a response. */
 export function endpointError(error: unknown): Response {
-	if (error instanceof UnauthorizedError) return Response.json({ error: 'Owner login required' }, { status: 401 });
+	if (error instanceof UnauthorizedError)
+		return Response.json({ error: 'Owner login required' }, { status: 401 });
 	if (error instanceof Error) return Response.json({ error: error.message }, { status: 400 });
 	throw error;
 }

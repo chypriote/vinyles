@@ -26,13 +26,19 @@ function quote(value: string) {
 }
 
 /** MusicBrainz release-group search. Null when nothing matches. Throws when the service fails. */
-export async function findAlbum(artist: string, title: string, intervalMs: number): Promise<AlbumMatch | null> {
+export async function findAlbum(
+	artist: string,
+	title: string,
+	intervalMs: number
+): Promise<AlbumMatch | null> {
 	await waitForSlot(intervalMs);
 	const url = new URL('https://musicbrainz.org/ws/2/release-group/');
 	url.searchParams.set('query', `artist:${quote(artist)} AND releasegroup:${quote(title)}`);
 	url.searchParams.set('fmt', 'json');
 	url.searchParams.set('limit', '1');
-	const response = await fetch(url, { headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' } });
+	const response = await fetch(url, {
+		headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' }
+	});
 	if (!response.ok) throw new Error(`MusicBrainz answered ${response.status}`);
 	const data = (await response.json()) as {
 		'release-groups'?: { id: string; score?: number; 'first-release-date'?: string }[];
@@ -46,10 +52,16 @@ export async function findAlbum(artist: string, title: string, intervalMs: numbe
 
 /** Front Cover from the Cover Art Archive. Null when the Album has none. */
 export async function findCover(musicbrainzId: string): Promise<FoundCover | null> {
-	const response = await fetch(`https://coverartarchive.org/release-group/${encodeURIComponent(musicbrainzId)}/front-500`, {
-		headers: { 'User-Agent': USER_AGENT }
-	});
+	const response = await fetch(
+		`https://coverartarchive.org/release-group/${encodeURIComponent(musicbrainzId)}/front-500`,
+		{
+			headers: { 'User-Agent': USER_AGENT }
+		}
+	);
 	if (response.status === 404) return null;
 	if (!response.ok) throw new Error(`Cover Art Archive answered ${response.status}`);
-	return { body: await response.arrayBuffer(), contentType: response.headers.get('content-type') ?? 'image/jpeg' };
+	return {
+		body: await response.arrayBuffer(),
+		contentType: response.headers.get('content-type') ?? 'image/jpeg'
+	};
 }
