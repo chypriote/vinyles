@@ -3,6 +3,7 @@
 	import type { WithCoverUrl } from '#lib/covers';
 	import type { WishlistItemView } from '#lib/server/catalog/types';
 	import { formatCents } from '#lib/format';
+	import { postAction } from '#lib/forms';
 	import Button from '#lib/components/Button.svelte';
 	import Chip from '#lib/components/Chip.svelte';
 	import Cover from '#lib/components/Cover.svelte';
@@ -11,6 +12,7 @@
 	import DesireFilter from '#lib/components/DesireFilter.svelte';
 	import EmptyState from '#lib/components/EmptyState.svelte';
 	import OwnerAction from '#lib/components/OwnerAction.svelte';
+	import GotItForm from '#lib/components/GotItForm.svelte';
 	import Popup from '#lib/components/Popup.svelte';
 	import SearchField from '#lib/components/SearchField.svelte';
 	import Select from '#lib/components/Select.svelte';
@@ -43,6 +45,7 @@
 	const items = $derived(filtered ?? data.items);
 
 	$effect(() => {
+		data.items; // refetch the filtered list after a change
 		if (!isFiltering && sort === 'artist') {
 			filtered = null;
 			return;
@@ -74,6 +77,13 @@
 	let selected = $state<Row | null>(null);
 	let anchor = $state<HTMLElement | null>(null);
 	let open = $state(false);
+	let gotItOpen = $state(false);
+
+	async function drop() {
+		if (!selected) return;
+		const outcome = await postAction('?/drop', { id: selected.id });
+		if (outcome.ok) open = false;
+	}
 
 	function select(item: Row, el: HTMLElement) {
 		selected = item;
@@ -89,7 +99,7 @@
 		<Chip tone="info" label="items" value={String(data.count)} />
 	{/snippet}
 	{#snippet action()}
-		<OwnerAction isOwner={data.isOwner} />
+		<OwnerAction isOwner={data.isOwner} current="wishlist" artists={data.artists} stores={data.stores} />
 	{/snippet}
 	{#snippet controls()}
 		<SearchField bind:value={search} label="Search artist or album" placeholder="Search" />
@@ -151,6 +161,27 @@
 				{/if}
 			</dl>
 		{/snippet}
-		<!-- actions (Got it, Drop, Owner only): next slice -->
+		{#snippet actions()}
+			{#if data.isOwner}
+				<Button
+					intent="success"
+					onclick={() => {
+						open = false;
+						gotItOpen = true;
+					}}>Got it</Button
+				>
+				<Button onclick={drop}>Drop</Button>
+			{/if}
+		{/snippet}
+	</Popup>
+{/if}
+
+{#if data.isOwner && selected}
+	<Popup bind:open={gotItOpen} album={`Got ${selected.album.title}`}>
+		{#snippet details()}
+			{#if selected}
+				<GotItForm wishlistItemId={selected.id} stores={data.stores} onDone={() => (gotItOpen = false)} />
+			{/if}
+		{/snippet}
 	</Popup>
 {/if}
