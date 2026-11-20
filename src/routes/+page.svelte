@@ -155,6 +155,7 @@
 {#if selected}
 	<Popup
 		bind:open
+		large
 		{anchor}
 		album={selected.album.title}
 		artist={selected.album.artist}

@@ -91,6 +91,7 @@
 	--popup-radius: var(--radius-xl-px);
 	--popup-width-max: 420px;
 	--popup-cover-size: 150px;
+	--popup-cover-size-large: 280px;
 	--cover-radius: var(--radius-md-px);
 }
 
