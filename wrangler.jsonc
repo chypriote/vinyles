@@ -11,6 +11,8 @@
 			"migrations_dir": "drizzle"
 		}
 	],
+	// Every 6 hours: the Refresh of the oldest Wishlist Items (see src/routes/api/cron).
+	"triggers": { "crons": ["0 */6 * * *"] },
 	"r2_buckets": [
 		{
 			"binding": "COVERS",

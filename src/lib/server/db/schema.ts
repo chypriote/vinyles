@@ -68,7 +68,9 @@ export const wishlistItems = sqliteTable(
 			.notNull()
 			.references(() => albums.id),
 		variant: text('variant'),
-		desire: integer('desire').notNull()
+		desire: integer('desire').notNull(),
+		/** When the last Refresh ran, whatever its result. Null: never. */
+		refreshedAt: text('refreshed_at')
 	},
 	(t) => [check('wishlist_item_desire_range', sql`${t.desire} BETWEEN 1 AND 3`)]
 );

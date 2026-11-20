@@ -219,3 +219,52 @@ describe('Product Link', () => {
 		expect(rows?.n).toBe(0);
 	});
 });
+
+describe('Refresh of the oldest items', () => {
+	const add = async (album: string) => {
+		const result = await catalog.addWishlistItem(token, { artist: 'Air', album, desire: 2 });
+		if (result.status !== 'added') throw new Error('not added');
+		return result.item.id;
+	};
+	const setRefreshed = (id: number, at: string | null) =>
+		env.DB.prepare('UPDATE wishlist_item SET refreshed_at = ? WHERE id = ?').bind(at, id).run();
+	const refreshedAt = async (id: number) =>
+		(
+			await env.DB.prepare('SELECT refreshed_at AS at FROM wishlist_item WHERE id = ?')
+				.bind(id)
+				.first<{ at: string | null }>()
+		)?.at;
+	const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString();
+	/** Items whose Artist and Album were asked for, by search query. */
+	const searched = () => [...new Set(requested.map((u) => u.searchParams.values().next().value))];
+
+	it('takes never refreshed items first, then the longest ago, up to the batch size', async () => {
+		const old = await add('Old');
+		const never = await add('Never');
+		const older = await add('Older');
+		const oldAt = daysAgo(20);
+		await setRefreshed(old, oldAt);
+		await setRefreshed(older, daysAgo(30));
+		expect(await catalog.refreshOldest({ size: 2, olderThanDays: 14 })).toEqual({ refreshed: 2 });
+		expect(searched().sort()).toEqual(['Air Never vinyl', 'Air Older vinyl']);
+		expect(await refreshedAt(never)).not.toBeNull();
+		expect(await refreshedAt(old)).toBe(oldAt);
+	});
+
+	it('skips items refreshed within the period, and refreshes the rest on the next run', async () => {
+		const recent = await add('Recent');
+		const stale = await add('Stale');
+		await setRefreshed(recent, daysAgo(3));
+		await setRefreshed(stale, daysAgo(15));
+		expect(await catalog.refreshOldest({ size: 5, olderThanDays: 14 })).toEqual({ refreshed: 1 });
+		expect(searched()).toEqual(['Air Stale vinyl']);
+		expect(await catalog.refreshOldest({ size: 5, olderThanDays: 14 })).toEqual({ refreshed: 0 });
+	});
+
+	it('marks an item refreshed even when every Store fails, so it does not block the others', async () => {
+		const id = await add('Blocked');
+		expect(await refreshedAt(id)).toBeNull();
+		await catalog.refreshOldest({ size: 1, olderThanDays: 14 });
+		expect(await refreshedAt(id)).not.toBeNull();
+	});
+});

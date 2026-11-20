@@ -31,6 +31,8 @@ Nico's vinyl Collection and Wishlist as a wall of Covers. SvelteKit (Svelte 5) o
    - `JWT_SECRET`: key that signs the Owner login token. Use a long random value. `npx wrangler secret put JWT_SECRET`
    - `DISCOGS_TOKEN` (optional): Discogs personal access token (free; discogs.com > Settings > Developers > Generate new token). Adds Discogs covers to the cover search. `npx wrangler secret put DISCOGS_TOKEN`
 
+Every 6 hours a cron trigger (`wrangler.jsonc`) refreshes the prices of the 5 Wishlist Items never refreshed or refreshed longest ago, if that was over 14 days ago. `npm run build` adds the `scheduled` handler (`scripts/add-cron-handler.mjs`), because the adapter builds a Worker without one.
+
 For local dev, put both in `.dev.vars` (git-ignored):
 
 ```

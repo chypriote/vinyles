@@ -341,6 +341,11 @@ export interface Catalog {
 	 * A Store with a Product Link is read through that link, not searched.
 	 */
 	refreshPrices(token: string, wishlistItemId: number): Promise<WishlistItemView>;
+	/**
+	 * For the schedule, not the Owner: refreshes the `size` Wishlist Items never refreshed or
+	 * refreshed longest ago, skipping those refreshed in the last `olderThanDays` days.
+	 */
+	refreshOldest(input: { size: number; olderThanDays: number }): Promise<{ refreshed: number }>;
 	setProductLink(token: string, input: SetProductLinkInput): Promise<WishlistItemView>;
 	removeProductLink(
 		token: string,
