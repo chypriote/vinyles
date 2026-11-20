@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { cheapestMatch, readOffers, readPagePrice } from './store-prices';
+import {
+	cheapestMatch,
+	readOffers,
+	readPagePrice,
+	readShopifySuggestions,
+	shopifySuggestUrl
+} from './store-prices';
 
 const page = (...blocks: unknown[]) =>
 	blocks.map((b) => `<script type="application/ld+json">${JSON.stringify(b)}</script>`).join('');
@@ -96,5 +102,38 @@ describe('readPagePrice', () => {
 
 	it('finds nothing on a page without a price', () => {
 		expect(readPagePrice('<html>Sold out</html>', 'https://shop.test/p')).toBeNull();
+	});
+});
+
+describe('Shopify suggestions', () => {
+	it('builds the suggestion address from the search address', () => {
+		expect(shopifySuggestUrl('https://shop.test/search?type=product&q=x', 'Air Talkie')).toBe(
+			'https://shop.test/search/suggest.json?q=Air%20Talkie&resources[type]=product&resources[limit]=10'
+		);
+	});
+
+	it('reads titles, prices and product addresses, and skips a product without a price', () => {
+		const json = {
+			resources: {
+				results: {
+					products: [
+						{ title: 'Air &amp; Co LP', price: '29.99', url: '/products/a' },
+						{ title: 'No price', price: '', url: '/products/b' },
+						{ title: 'Free', price: '0.00', url: '/products/c' }
+					]
+				}
+			}
+		};
+		expect(readShopifySuggestions(json, 'https://shop.test')).toEqual([
+			{ name: 'Air & Co LP', priceCents: 2999, url: 'https://shop.test/products/a' }
+		]);
+	});
+
+	it('is null for an answer that is not a suggestion list', () => {
+		expect(readShopifySuggestions({ error: 'x' }, 'https://shop.test')).toBeNull();
+		expect(readShopifySuggestions(null, 'https://shop.test')).toBeNull();
+		expect(
+			readShopifySuggestions({ resources: { results: { products: [] } } }, 'https://shop.test')
+		).toEqual([]);
 	});
 });

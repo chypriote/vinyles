@@ -1,26 +1,49 @@
-/** A Store whose search page the Refresh reads. Add a Store here to try it for every Wishlist Item. */
+/** A Store the Refresh searches. Add a Store here to try it for every Wishlist Item. */
 export interface AutomaticStore {
 	name: string;
 	searchUrl(query: string): string;
+	/** A Shopify shop: read its search suggestions (JSON) instead of the search page. */
+	shopify?: boolean;
 }
 
 const search = (base: string) => (query: string) => `${base}${encodeURIComponent(query)}`;
 
 export const AUTOMATIC_STORES: AutomaticStore[] = [
-	{ name: 'Nuclear Blast', searchUrl: search('https://www.nuclearblast.com/en/search?q=') },
+	{
+		name: 'Nuclear Blast',
+		searchUrl: search('https://www.nuclearblast.com/search?type=product&q='),
+		shopify: true
+	},
 	{
 		name: 'Fnac',
 		searchUrl: search('https://www.fnac.com/SearchResult/ResultList.aspx?Search=')
 	},
 	{ name: 'Amazon', searchUrl: search('https://www.amazon.fr/s?k=') },
-	{ name: 'Impericon', searchUrl: search('https://www.impericon.com/eu/catalogsearch/result/?q=') },
-	{ name: 'Sound of Vinyl', searchUrl: search('https://www.soundofvinyl.fr/search?q=') },
+	{
+		name: 'Impericon',
+		searchUrl: search('https://www.impericon.com/search?type=product&q='),
+		shopify: true
+	},
+	{
+		name: 'Sound of Vinyl',
+		searchUrl: search('https://thesoundofvinyl.com/search?q='),
+		shopify: true
+	},
 	{
 		name: 'Napalm Records',
 		searchUrl: search('https://napalmrecords.com/english/catalogsearch/result/?q=')
 	},
-	{ name: 'AFM Records', searchUrl: search('https://www.afm-records.de/en/search?q=') }
+	{
+		name: 'AFM Records',
+		searchUrl: search('https://www.afm-records.de/search?type=product&q='),
+		shopify: true
+	}
 ];
+
+/** The JSON address of the product suggestions of a Shopify shop for a search. */
+export function shopifySuggestUrl(searchUrl: string, query: string): string {
+	return `${new URL(searchUrl).origin}/search/suggest.json?q=${encodeURIComponent(query)}&resources[type]=product&resources[limit]=10`;
+}
 
 export interface Offer {
 	name: string;
@@ -154,4 +177,18 @@ export function readPagePrice(html: string, pageUrl: string): number | null {
 	return amount !== null && amount > 0 && (currency === undefined || currency === 'EUR')
 		? amount
 		: null;
+}
+
+/** Offers in a Shopify suggestion answer, in euros. Null when the answer is not one. */
+export function readShopifySuggestions(json: unknown, origin: string): Offer[] | null {
+	const products = (json as { resources?: { results?: { products?: unknown } } } | null)?.resources
+		?.results?.products;
+	if (!Array.isArray(products)) return null;
+	const offers: Offer[] = [];
+	for (const p of products) {
+		const priceCents = toCents(p?.price);
+		if (typeof p?.title !== 'string' || priceCents === null || priceCents <= 0) continue;
+		offers.push({ name: decode(p.title), priceCents, url: absolute(p.url, origin) });
+	}
+	return offers;
 }

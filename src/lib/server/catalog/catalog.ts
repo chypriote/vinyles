@@ -15,7 +15,10 @@ import {
 	cheapestMatch,
 	readOffers,
 	readPagePrice,
-	type AutomaticStore
+	readShopifySuggestions,
+	shopifySuggestUrl,
+	type AutomaticStore,
+	type Offer
 } from './store-prices';
 import { issueToken, passwordMatches, tokenIsValid, UnauthorizedError } from './auth';
 import {
@@ -275,7 +278,26 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 
 	/** The price at one Store, from its search page: found, no matching product, or unreadable. */
 	async function priceAt(store: AutomaticStore, artist: string, album: string): Promise<Found> {
-		const searchUrl = store.searchUrl(`${artist} ${album} vinyl`);
+		const query = `${artist} ${album} vinyl`;
+		const searchUrl = store.searchUrl(query);
+		if (store.shopify) {
+			const text = await readPage(shopifySuggestUrl(searchUrl, query));
+			let offers: Offer[] | null = null;
+			try {
+				offers =
+					text === null
+						? null
+						: readShopifySuggestions(JSON.parse(text), new URL(searchUrl).origin);
+			} catch {
+				// Not JSON: the shop is not readable this way.
+			}
+			if (offers === null) {
+				if (text !== null) console.warn(`Refresh: ${store.name} suggestions are not Shopify JSON`);
+				return 'unreadable';
+			}
+			const match = cheapestMatch(offers, artist, album);
+			return match ? { priceCents: match.priceCents, url: match.url ?? searchUrl } : 'none';
+		}
 		const html = await readPage(searchUrl);
 		if (html === null) return 'unreadable';
 		const page = readOffers(html, searchUrl);
