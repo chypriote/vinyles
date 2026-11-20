@@ -1,0 +1,7 @@
+{
+	"extends": "$app/tsconfig",
+	"compilerOptions": {
+		"strict": true
+	},
+	"include": ["src", "test", "worker-configuration.d.ts", "vite.config.ts", "vitest.config.ts"]
+}
