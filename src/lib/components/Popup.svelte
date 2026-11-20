@@ -64,7 +64,7 @@
 <Dialog.Root bind:open {onOpenChange}>
 	<Dialog.Content
 		bind:ref={content}
-		style={pos ? `left:${pos.left}px;top:${pos.top}px;transform:none` : undefined}
+		style={pos ? `left:${pos.left}px;top:${pos.top}px;translate:none` : undefined}
 		onCloseAutoFocus={(e: Event) => {
 			if (anchor) {
 				e.preventDefault();
