@@ -1,16 +1,20 @@
 <script lang="ts">
-	import Button from './Button.svelte';
+	import { Button } from './ui/button/index.js';
 	import LoginForm from './LoginForm.svelte';
 	import Popup from './Popup.svelte';
 
 	let loginOpen = $state(false);
 </script>
 
-<Button onclick={() => (loginOpen = true)}>
+<Button
+	variant="neutral"
+	onclick={() => (loginOpen = true)}
+	class="size-7 min-h-0 px-0 after:absolute after:-inset-2 after:content-['']"
+>
 	<svg
 		aria-hidden="true"
 		viewBox="0 0 24 24"
-		class="size-5"
+		class="size-4"
 		fill="none"
 		stroke="currentColor"
 		stroke-width="2"

@@ -8,4 +8,4 @@
 	}: { value?: string; label: string; placeholder?: string } = $props();
 </script>
 
-<Input type="search" bind:value aria-label={label} {placeholder} />
+<Input type="search" bind:value aria-label={label} {placeholder} class="w-auto flex-1 basis-40" />

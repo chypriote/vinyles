@@ -5,6 +5,6 @@
 	let { data }: PageProps = $props();
 </script>
 
-<svelte:head><title>Import</title></svelte:head>
+<svelte:head><title>Vinyles | Import</title></svelte:head>
 
 <ImportReview progress={data.progress} unmatched={data.unmatched} />
