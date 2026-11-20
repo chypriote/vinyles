@@ -78,51 +78,66 @@
 		return blob;
 	}
 
-	async function upload() {
+	/** What the Owner is asked to confirm: a candidate or an uploaded image. */
+	let preview = $state<{ url: string; label: string; source: string } | null>(null);
+	let upload = $state<Blob | null>(null);
+
+	async function chooseFile() {
 		const file = fileInput?.files?.[0];
 		if (!file) return;
 		uploading = true;
 		pickError = null;
 		try {
-			const body = await shrink(file).catch(() => null);
-			if (!body) {
-				pickError = 'Could not read this image';
-				return;
-			}
-			const response = await fetch(`/api/albums/${albumId}/cover-upload`, {
-				method: 'POST',
-				headers: { 'content-type': body.type },
-				body
-			});
-			if (response.ok) {
-				await invalidateAll();
-				onDone();
-			} else {
-				pickError =
-					((await response.json()) as { error?: string }).error ?? 'Could not upload the cover';
-			}
+			upload = await shrink(file);
+			picked = null;
+			preview = { url: URL.createObjectURL(upload), label: file.name, source: 'Upload' };
+			confirmOpen = true;
 		} catch {
-			pickError = 'Could not upload the cover';
+			pickError = 'Could not read this image';
 		} finally {
 			uploading = false;
 			if (fileInput) fileInput.value = '';
 		}
 	}
 
+	// MusicBrainz previews are 250 px; the confirm dialog wants the 500 px image.
+	const largeUrl = (c: CoverCandidate) =>
+		c.source === 'discogs' ? c.id : c.imageUrl.replace('front-250', 'front-500');
+
 	function choose(candidate: CoverCandidate) {
 		picked = candidate;
+		upload = null;
+		preview = {
+			url: largeUrl(candidate),
+			label: candidate.title
+				? `${candidate.artist} – ${candidate.title}${candidate.year ? ` (${candidate.year})` : ''}`
+				: '',
+			source: candidate.source === 'discogs' ? 'Discogs' : 'MusicBrainz'
+		};
 		confirmOpen = true;
 	}
 
+	// Frees the browser copy of an uploaded image once the dialog closes.
+	$effect(() => {
+		if (confirmOpen || !preview?.url.startsWith('blob:')) return;
+		URL.revokeObjectURL(preview.url);
+	});
+
 	async function useCover() {
-		if (!picked) return;
+		if (!picked && !upload) return;
 		busy = true;
 		try {
-			const response = await fetch(`/api/albums/${albumId}/cover`, {
-				method: 'POST',
-				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify({ candidateId: picked.id, source: picked.source })
-			});
+			const response = upload
+				? await fetch(`/api/albums/${albumId}/cover-upload`, {
+						method: 'POST',
+						headers: { 'content-type': upload.type },
+						body: upload
+					})
+				: await fetch(`/api/albums/${albumId}/cover`, {
+						method: 'POST',
+						headers: { 'content-type': 'application/json' },
+						body: JSON.stringify({ candidateId: picked!.id, source: picked!.source })
+					});
 			if (response.ok) {
 				await invalidateAll();
 				onDone();
@@ -145,7 +160,7 @@
 			type="file"
 			accept="image/jpeg,image/png,image/webp"
 			class="hidden"
-			onchange={upload}
+			onchange={chooseFile}
 		/>
 		<IconButton
 			variant="neutral"
@@ -215,4 +230,18 @@
 	text="It replaces the cover of every record and wishlist item of this album."
 	actionLabel="Use this cover"
 	onConfirm={useCover}
-/>
+>
+	{#if preview}
+		<figure class="flex flex-col items-center gap-1">
+			<img
+				src={preview.url}
+				alt=""
+				class="aspect-square w-full max-w-72 rounded-sm bg-muted object-cover shadow-(--shadow-raised)"
+			/>
+			<figcaption class="max-w-72 text-center text-sm">
+				{#if preview.label}<span class="block font-bold break-words">{preview.label}</span>{/if}
+				<span class="block text-xs text-muted-foreground">{preview.source}</span>
+			</figcaption>
+		</figure>
+	{/if}
+</ConfirmDialog>

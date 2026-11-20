@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { Snippet } from 'svelte';
 	import * as AlertDialog from './ui/alert-dialog/index.js';
 
 	let {
@@ -6,13 +7,16 @@
 		title,
 		text,
 		actionLabel,
-		onConfirm
+		onConfirm,
+		children
 	}: {
 		open?: boolean;
 		title: string;
 		text: string;
 		actionLabel: string;
 		onConfirm: () => void;
+		/** Shown between the text and the buttons. */
+		children?: Snippet;
 	} = $props();
 </script>
 
@@ -22,6 +26,7 @@
 			<AlertDialog.Title>{title}</AlertDialog.Title>
 			<AlertDialog.Description>{text}</AlertDialog.Description>
 		</AlertDialog.Header>
+		{@render children?.()}
 		<AlertDialog.Footer>
 			<AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
 			<AlertDialog.Action onclick={onConfirm}>{actionLabel}</AlertDialog.Action>
