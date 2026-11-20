@@ -31,7 +31,7 @@
 	// Filters are page state, not in the URL. The Catalog applies them, through /api/records.
 	let search = $state('');
 	let artist = $state('');
-	let sort = $state('artist');
+	let sort = $state('acquired');
 	let filtered = $state<Row[] | null>(null);
 
 	const artistOptions = $derived([
@@ -45,7 +45,7 @@
 
 	$effect(() => {
 		void data.records; // refetch the filtered list after a change
-		if (!isFiltering && sort === 'artist') {
+		if (!isFiltering && sort === 'acquired') {
 			filtered = null;
 			return;
 		}

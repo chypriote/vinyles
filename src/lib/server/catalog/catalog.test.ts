@@ -361,8 +361,17 @@ describe('Collection list', () => {
 		const titles = async (input?: Parameters<Catalog['listRecords']>[0]) =>
 			(await catalog.listRecords(input)).records.map((r) => r.album.title);
 
-		it('sorts by Artist then Album by default', async () => {
-			expect(await titles()).toEqual(['Moon Safari', 'Talkie Walkie', 'Discovery', 'No Year']);
+		it('sorts by acquisition date, latest first, by default', async () => {
+			expect(await titles()).toEqual(['Discovery', 'Moon Safari', 'Talkie Walkie', 'No Year']);
+		});
+
+		it('sorts by Artist then Album', async () => {
+			expect(await titles({ sort: 'artist' })).toEqual([
+				'Moon Safari',
+				'Talkie Walkie',
+				'Discovery',
+				'No Year'
+			]);
 		});
 
 		it('sorts by Album', async () => {

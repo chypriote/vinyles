@@ -285,7 +285,7 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 	return {
 		async listRecords(input = {}) {
 			const all = await loadRecords();
-			const sort: RecordSortKey = input.sort ?? 'artist';
+			const sort: RecordSortKey = input.sort ?? 'acquired';
 			const byDate = (a: RecordView, b: RecordView) =>
 				b.acquisition.date.localeCompare(a.acquisition.date) ||
 				byAlbum(a.album, b.album) ||
