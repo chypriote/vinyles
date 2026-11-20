@@ -2,6 +2,7 @@
 	import { addStore, emptyAcquisition, postAction, toAcquisitionInput } from '#lib/forms';
 	import AcquisitionFields from './AcquisitionFields.svelte';
 	import Button from './Button.svelte';
+	import Field from './Field.svelte';
 
 	let {
 		wishlistItemId,
@@ -30,6 +31,7 @@
 </script>
 
 <form class="flex flex-col gap-4" onsubmit={submit}>
+	<Field label="Date" type="date" required bind:value={acquisition.date} />
 	<AcquisitionFields bind:acquisition {stores} onAddStore={addStore} />
 	{#if error}<p class="text-sm font-medium text-foreground" role="alert">! {error}</p>{/if}
 	<div class="flex flex-wrap gap-2">

@@ -21,13 +21,16 @@
 		record = null,
 		artists,
 		stores,
-		onDone
+		onDone,
+		onChangeCover
 	}: {
 		/** Set to edit this Record: the form is prefilled and gets "Delete record". */
 		record?: EditableRecord | null;
 		artists: { id: number; name: string }[];
 		stores: { id: number; name: string }[];
 		onDone: () => void;
+		/** Edit mode only: opens the cover picker. */
+		onChangeCover?: () => void;
 	} = $props();
 
 	function startingAcquisition(): AcquisitionState {
@@ -97,19 +100,33 @@
 	</div>
 	<Field label="Album" required bind:value={album} />
 	<Field label="Variant" bind:value={variant} />
+	<Field label="Date" type="date" required bind:value={acquisition.date} />
 	<AcquisitionFields bind:acquisition {stores} onAddStore={addStore} />
 	{#if error}<p class="text-sm font-medium text-foreground" role="alert">! {error}</p>{/if}
 	<div class="flex flex-wrap gap-2">
-		<Button intent="success" type="submit" disabled={removing} loading={busy && !removing}>
-			Save
-		</Button>
 		<Button onclick={onDone}>Cancel</Button>
 		{#if record}
-			<Button disabled={busy} loading={removing} onclick={() => (confirmOpen = true)}>
+			<Button onclick={onChangeCover}>Change cover</Button>
+			<Button
+				intent="danger"
+				class="ml-auto"
+				disabled={busy}
+				loading={removing}
+				onclick={() => (confirmOpen = true)}
+			>
 				Delete record
 			</Button>
 		{/if}
 	</div>
+	<Button
+		intent="success"
+		type="submit"
+		class="w-full"
+		disabled={removing}
+		loading={busy && !removing}
+	>
+		Save
+	</Button>
 </form>
 
 {#if record}

@@ -8,9 +8,11 @@
 		loading = false,
 		onclick,
 		type = 'button',
+		class: className,
 		children
 	}: {
-		intent?: 'success' | 'neutral';
+		intent?: 'success' | 'neutral' | 'danger';
+		class?: string;
 		disabled?: boolean;
 		loading?: boolean;
 		onclick?: () => void;
@@ -19,6 +21,6 @@
 	} = $props();
 </script>
 
-<Button variant={intent} {disabled} {loading} {type} {onclick}>
+<Button variant={intent} {disabled} {loading} {type} {onclick} class={className}>
 	{@render children?.()}
 </Button>

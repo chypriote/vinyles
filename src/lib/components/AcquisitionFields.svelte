@@ -19,22 +19,26 @@
 
 <div class="flex flex-col gap-1.5">
 	<span class="text-sm font-bold" id={labelId}>Acquisition</span>
-	<ToggleGroup
-		type="single"
-		aria-labelledby={labelId}
-		value={acquisition.kind}
-		onValueChange={(v) => {
-			if (v === 'purchase' || v === 'gift') acquisition.kind = v;
-		}}
-	>
-		<ToggleGroupItem value="purchase">Purchase</ToggleGroupItem>
-		<ToggleGroupItem value="gift">Gift</ToggleGroupItem>
-	</ToggleGroup>
+	<div class="flex items-center gap-3">
+		<ToggleGroup
+			type="single"
+			aria-labelledby={labelId}
+			value={acquisition.kind}
+			onValueChange={(v) => {
+				if (v === 'purchase' || v === 'gift') acquisition.kind = v;
+			}}
+		>
+			<ToggleGroupItem value="purchase">Purchase</ToggleGroupItem>
+			<ToggleGroupItem value="gift">Gift</ToggleGroupItem>
+		</ToggleGroup>
+		{#if acquisition.kind === 'gift'}
+			<div class="min-w-0 flex-1">
+				<Field label="From" bind:value={acquisition.giver} />
+			</div>
+		{/if}
+	</div>
 </div>
-<Field label="Date" type="date" required bind:value={acquisition.date} />
 {#if acquisition.kind === 'purchase'}
 	<StoreSelect bind:value={acquisition.storeId} {stores} {onAddStore} />
 	<Field label="Price (€)" type="number" required bind:value={acquisition.price} />
-{:else}
-	<Field label="From" bind:value={acquisition.giver} />
 {/if}
