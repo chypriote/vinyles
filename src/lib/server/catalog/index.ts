@@ -11,9 +11,6 @@ export function createCatalog(env: CatalogEnv, options?: CatalogOptions): Catalo
 }
 
 /** Builds the Catalog for a route from the Worker bindings (adapter-cloudflare 9 no longer sets `platform`). */
-export function catalogFromPlatform(
-	_platform?: unknown,
-	options?: CatalogOptions
-): Catalog {
+export function catalogFromPlatform(_platform?: unknown, options?: CatalogOptions): Catalog {
 	return createCatalog(env as unknown as CatalogEnv, options);
 }
