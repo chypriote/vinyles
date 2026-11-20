@@ -74,7 +74,8 @@
 		desires = [];
 	}
 
-	let selected = $state<Row | null>(null);
+	let selectedId = $state<number | null>(null);
+	const selected = $derived<Row | null>(data.items.find((row) => row.id === selectedId) ?? null);
 	let anchor = $state<HTMLElement | null>(null);
 	let open = $state(false);
 	let gotItOpen = $state(false);
@@ -85,8 +86,17 @@
 		if (outcome.ok) open = false;
 	}
 
+	// The row can disappear after a change (deleted, got, dropped): close its Popups.
+	$effect(() => {
+		if (selectedId !== null && !selected) {
+			open = false;
+			gotItOpen = false;
+			selectedId = null;
+		}
+	});
+
 	function select(item: Row, el: HTMLElement) {
-		selected = item;
+		selectedId = item.id;
 		anchor = el;
 		open = true;
 	}

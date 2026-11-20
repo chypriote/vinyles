@@ -70,13 +70,23 @@
 		artist = '';
 	}
 
-	let selected = $state<Row | null>(null);
+	let selectedId = $state<number | null>(null);
+	const selected = $derived<Row | null>(data.records.find((row) => row.id === selectedId) ?? null);
 	let anchor = $state<HTMLElement | null>(null);
 	let open = $state(false);
 	let editOpen = $state(false);
 
+	// The row can disappear after a change (deleted, got, dropped): close its Popups.
+	$effect(() => {
+		if (selectedId !== null && !selected) {
+			open = false;
+			editOpen = false;
+			selectedId = null;
+		}
+	});
+
 	function select(record: Row, el: HTMLElement) {
-		selected = record;
+		selectedId = record.id;
 		anchor = el;
 		open = true;
 	}
