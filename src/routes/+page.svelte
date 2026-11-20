@@ -161,7 +161,9 @@
 		coverUrl={selected.album.coverUrl}
 	>
 		{#snippet details()}
-			<dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
+			<dl
+				class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-[15px] [&_dd]:font-extrabold [&_dd]:[overflow-wrap:break-word]"
+			>
 				<dt class="text-muted-foreground">Year</dt>
 				<dd>{selected?.album.releaseYear ?? 'Unknown'}</dd>
 				{#if selected?.variant}
@@ -169,18 +171,25 @@
 					<dd>{selected.variant}</dd>
 				{/if}
 				{#if selected?.acquisition.kind === 'purchase'}
-					<dt class="text-muted-foreground">Bought</dt>
+					<dt class="text-muted-foreground">Acquired</dt>
 					<dd>
-						{formatDate(selected.acquisition.date)}, {selected.acquisition.store.name},
-						{formatCents(selected.acquisition.priceCents)}
+						Purchase · <span class="whitespace-nowrap">
+							{formatDate(selected.acquisition.date)}
+						</span>
 					</dd>
+					<dt class="text-muted-foreground">Store</dt>
+					<dd>{selected.acquisition.store.name}</dd>
+					<dt class="text-muted-foreground">Price</dt>
+					<dd>{formatCents(selected.acquisition.priceCents)}</dd>
 				{:else if selected}
-					<dt class="text-muted-foreground">Gift</dt>
+					<dt class="text-muted-foreground">Acquired</dt>
 					<dd>
-						{formatDate(selected.acquisition.date)}{selected.acquisition.giver
-							? `, from ${selected.acquisition.giver}`
-							: ''}
+						Gift · <span class="whitespace-nowrap">{formatDate(selected.acquisition.date)}</span>
 					</dd>
+					{#if selected.acquisition.giver}
+						<dt class="text-muted-foreground">From</dt>
+						<dd>{selected.acquisition.giver}</dd>
+					{/if}
 				{/if}
 			</dl>
 		{/snippet}

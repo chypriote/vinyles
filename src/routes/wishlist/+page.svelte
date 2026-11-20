@@ -173,7 +173,9 @@
 		coverUrl={selected.album.coverUrl}
 	>
 		{#snippet details()}
-			<dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
+			<dl
+				class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-[15px] [&_dd]:font-extrabold [&_dd]:[overflow-wrap:break-word]"
+			>
 				<dt class="text-muted-foreground">Year</dt>
 				<dd>{selected?.album.releaseYear ?? 'Unknown'}</dd>
 				{#if selected?.variant}
@@ -182,7 +184,12 @@
 				{/if}
 				{#if selected}
 					<dt class="text-muted-foreground">Desire</dt>
-					<dd><DesireDots value={selected.desire} /></dd>
+					<dd class="flex items-center gap-1.5">
+						<DesireDots value={selected.desire} />
+						<span class="font-medium whitespace-nowrap text-muted-foreground">
+							{selected.desire}/3
+						</span>
+					</dd>
 					{#each selected.priceQuotes as quote (quote.store.id)}
 						<dt class="text-muted-foreground">{quote.store.name}</dt>
 						<dd>{formatCents(quote.priceCents)}</dd>
