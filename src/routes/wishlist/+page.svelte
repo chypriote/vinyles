@@ -11,6 +11,7 @@
 	import CoverPicker from '#lib/components/CoverPicker.svelte';
 	import CoverGrid from '#lib/components/CoverGrid.svelte';
 	import DesireDots from '#lib/components/DesireDots.svelte';
+	import DesirePicker from '#lib/components/DesirePicker.svelte';
 	import DesireFilter from '#lib/components/DesireFilter.svelte';
 	import EmptyState from '#lib/components/EmptyState.svelte';
 	import AddAction from '#lib/components/AddAction.svelte';
@@ -26,6 +27,7 @@
 	let { data }: PageProps = $props();
 
 	const sorts = [
+		{ value: 'desire', label: 'Sort: most wanted' },
 		{ value: 'artist', label: 'Sort: artist' },
 		{ value: 'album', label: 'Sort: album' },
 		{ value: 'year', label: 'Sort: release year' }
@@ -34,7 +36,7 @@
 	// Filters are page state, not in the URL. The Catalog applies them, through /api/wishlist.
 	let search = $state('');
 	let artist = $state('');
-	let sort = $state('artist');
+	let sort = $state('desire');
 	let desires = $state<(1 | 2 | 3)[]>([]);
 	let filtered = $state<Row[] | null>(null);
 
@@ -52,7 +54,7 @@
 
 	$effect(() => {
 		void data.items; // refetch the filtered list after a change
-		if (!isFiltering && sort === 'artist') {
+		if (!isFiltering && sort === 'desire') {
 			filtered = null;
 			return;
 		}
@@ -88,6 +90,25 @@
 	let coverOpen = $state(false);
 
 	let dropping = $state(false);
+	let settingDesire = $state<1 | 2 | 3 | null>(null);
+	let selecting = $state(false);
+	let checked = $state<number[]>([]);
+
+	async function setDesire(ids: number[], desire: 1 | 2 | 3) {
+		settingDesire = desire;
+		const outcome = await postAction('?/setDesire', { ids, desire });
+		settingDesire = null;
+		return outcome.ok;
+	}
+
+	async function setChecked(desire: 1 | 2 | 3) {
+		if (await setDesire(checked, desire)) checked = [];
+	}
+
+	function toggleSelecting() {
+		selecting = !selecting;
+		checked = [];
+	}
 
 	async function drop() {
 		if (!selected) return;
@@ -108,6 +129,12 @@
 	});
 
 	function select(item: Row, el: HTMLElement) {
+		if (selecting) {
+			checked = checked.includes(item.id)
+				? checked.filter((id) => id !== item.id)
+				: [...checked, item.id];
+			return;
+		}
 		selectedId = item.id;
 		anchor = el;
 		open = true;
@@ -128,6 +155,13 @@
 	{#snippet action()}
 		{#if data.isOwner}
 			<AddAction current="wishlist" artists={data.artists} stores={data.stores} />
+			<Button onclick={toggleSelecting}>{selecting ? 'Done' : 'Select'}</Button>
+			{#if selecting}
+				<span class="text-sm font-extrabold">{checked.length} selected</span>
+				{#if checked.length > 0}
+					<DesirePicker busy={settingDesire} onPick={setChecked} />
+				{/if}
+			{/if}
 		{/if}
 	{/snippet}
 	{#snippet controls()}
@@ -160,6 +194,7 @@
 						artist={item.album.artist}
 						coverUrl={item.album.coverUrl}
 						desire={item.desire}
+						selected={selecting ? checked.includes(item.id) : undefined}
 						onSelect={(el) => select(item, el)}
 					/>
 				</li>
@@ -194,6 +229,16 @@
 							{selected.desire}/3
 						</span>
 					</dd>
+					{#if data.isOwner}
+						<dt class="text-muted-foreground">Set to</dt>
+						<dd>
+							<DesirePicker
+								value={selected.desire}
+								busy={settingDesire}
+								onPick={(level) => selected && setDesire([selected.id], level)}
+							/>
+						</dd>
+					{/if}
 					{#each selected.priceQuotes as quote (quote.store.id)}
 						<dt class="text-muted-foreground">{quote.store.name}</dt>
 						<dd>{formatCents(quote.priceCents)}</dd>

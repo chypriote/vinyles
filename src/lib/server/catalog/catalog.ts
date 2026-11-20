@@ -357,14 +357,17 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 		async listWishlist(input = {}) {
 			const all = await loadWishlist();
 			const desires = input.desires?.length ? input.desires : null;
-			const album = albumComparator(input.sort);
+			const sort = input.sort;
+			const album = albumComparator(sort === 'desire' ? undefined : sort);
+			const byDesire = (a: WishlistItemView, b: WishlistItemView) =>
+				sort === 'desire' ? b.desire - a.desire : 0;
 			const items = all
 				.filter(
 					(i) =>
 						matchesFilters(i.album.artist, i.album.title, input) &&
 						(!desires || desires.includes(i.desire))
 				)
-				.sort((a, b) => album(a.album, b.album) || a.id - b.id);
+				.sort((a, b) => byDesire(a, b) || album(a.album, b.album) || a.id - b.id);
 			return { items, count: all.length };
 		},
 
@@ -551,6 +554,16 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 		async drop(token, wishlistItemId) {
 			await owner(token);
 			await db.delete(wishlistItems).where(eq(wishlistItems.id, wishlistItemId));
+		},
+
+		async setDesire(token, wishlistItemIds, desire) {
+			await owner(token);
+			if (!isDesire(desire)) throw new Error('Desire is 1, 2 or 3');
+			if (!wishlistItemIds.length) return;
+			await db
+				.update(wishlistItems)
+				.set({ desire })
+				.where(inArray(wishlistItems.id, wishlistItemIds));
 		},
 
 		async importRows(token, input) {

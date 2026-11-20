@@ -625,6 +625,34 @@ describe('Wishlist', () => {
 			expect(await titles({ sort: 'year' })).toEqual(['Moon Safari', 'Discovery', 'Talkie Walkie']);
 		});
 
+		it('sorts most wanted first, ties by Artist then Album', async () => {
+			expect(await titles({ sort: 'desire' })).toEqual([
+				'Moon Safari',
+				'Talkie Walkie',
+				'Discovery'
+			]);
+			const all = (await catalog.listWishlist()).items;
+			await catalog.setDesire(
+				token,
+				all.map((i) => i.id),
+				2
+			);
+			expect(await titles({ sort: 'desire' })).toEqual([
+				'Moon Safari',
+				'Talkie Walkie',
+				'Discovery'
+			]);
+		});
+
+		it('sets the Desire of several Wishlist Items, Owner only, 1 to 3', async () => {
+			const all = (await catalog.listWishlist()).items;
+			const ids = all.filter((i) => i.album.artist === 'Air').map((i) => i.id);
+			await catalog.setDesire(token, ids, 1);
+			expect(await titles({ desires: [1] })).toHaveLength(3);
+			await expect(catalog.setDesire('bad', ids, 3)).rejects.toThrow();
+			await expect(catalog.setDesire(token, ids, 4 as 3)).rejects.toThrow('Desire is 1, 2 or 3');
+		});
+
 		it('filters by several Desires at once, none meaning all', async () => {
 			expect(await titles({ desires: [3] })).toEqual(['Moon Safari']);
 			expect(await titles({ desires: [1, 2] })).toEqual(['Talkie Walkie', 'Discovery']);
