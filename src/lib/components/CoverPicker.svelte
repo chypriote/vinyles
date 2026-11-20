@@ -25,6 +25,7 @@
 	let confirmOpen = $state(false);
 	let busy = $state(false);
 	let failed = $state<string[]>([]);
+	const loading = $derived(candidates === null && !error);
 	const key = (c: CoverCandidate) => c.source + c.id;
 	// A candidate whose image does not load is left out.
 	const shown = $derived((candidates ?? []).filter((c) => !failed.includes(key(c))));
@@ -90,7 +91,7 @@
 <div class="flex min-w-0 flex-col gap-3">
 	<form class="flex gap-2" onsubmit={search}>
 		<Input type="search" bind:value={text} aria-label="Search covers" class="flex-1" />
-		<Button type="submit" disabled={!text.trim() || (candidates === null && !error)}>Search</Button>
+		<Button type="submit" disabled={!text.trim()} {loading}>Search</Button>
 	</form>
 	{#if pickError}
 		<p role="alert" class="text-sm text-destructive">{pickError}</p>
@@ -98,7 +99,11 @@
 	{#if error}
 		<p role="alert" class="text-sm text-destructive">{error}</p>
 	{:else if candidates === null}
-		<p class="text-sm text-muted-foreground">Loading covers…</p>
+		<ul class="grid grid-cols-4 gap-3" aria-busy="true" aria-label="Loading covers">
+			{#each Array.from({ length: 8 }, (_, i) => i) as i (i)}
+				<li class="aspect-square rounded-sm bg-muted motion-safe:animate-pulse"></li>
+			{/each}
+		</ul>
 	{:else if shown.length === 0 && candidates.length === 0}
 		<p class="text-sm text-muted-foreground">No cover found</p>
 	{:else}
