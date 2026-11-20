@@ -12,7 +12,8 @@
 	import DesireDots from '#lib/components/DesireDots.svelte';
 	import DesireFilter from '#lib/components/DesireFilter.svelte';
 	import EmptyState from '#lib/components/EmptyState.svelte';
-	import OwnerAction from '#lib/components/OwnerAction.svelte';
+	import AddAction from '#lib/components/AddAction.svelte';
+	import LoginAction from '#lib/components/LoginAction.svelte';
 	import GotItForm from '#lib/components/GotItForm.svelte';
 	import Popup from '#lib/components/Popup.svelte';
 	import SearchField from '#lib/components/SearchField.svelte';
@@ -109,13 +110,15 @@
 	{#snippet chips()}
 		<Chip tone="info" label="items" value={String(data.count)} />
 	{/snippet}
+	{#snippet login()}
+		{#if !data.isOwner}
+			<LoginAction />
+		{/if}
+	{/snippet}
 	{#snippet action()}
-		<OwnerAction
-			isOwner={data.isOwner}
-			current="wishlist"
-			artists={data.artists}
-			stores={data.stores}
-		/>
+		{#if data.isOwner}
+			<AddAction current="wishlist" artists={data.artists} stores={data.stores} />
+		{/if}
 	{/snippet}
 	{#snippet controls()}
 		<SearchField bind:value={search} label="Search artist or album" placeholder="Search" />

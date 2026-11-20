@@ -6,13 +6,16 @@
 		title,
 		current,
 		chips,
+		login,
 		action,
 		controls
 	}: {
 		title: string;
 		current: 'collection' | 'wishlist';
 		chips?: Snippet;
-		/** Lock button (Viewer) or Add button (Owner). */
+		/** Lock button (Viewer), in the title row. */
+		login?: Snippet;
+		/** Add button (Owner), next to the tabs. */
 		action?: Snippet;
 		/** SearchField, Selects, DesireFilter. */
 		controls?: Snippet;
@@ -25,9 +28,12 @@
 	<div class="flex flex-wrap items-center gap-2">
 		<h1>{title}</h1>
 		{@render chips?.()}
+		{@render login?.()}
+	</div>
+	<div class="flex flex-wrap items-center gap-2">
+		<Tabs {current} />
 		{@render action?.()}
 	</div>
-	<Tabs {current} />
 	<div class="flex flex-wrap items-center gap-2">
 		{@render controls?.()}
 	</div>
