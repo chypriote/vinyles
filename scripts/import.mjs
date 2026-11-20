@@ -57,6 +57,7 @@ if (file) {
 }
 
 let after;
+let lastDone = -1;
 for (;;) {
 	const response = await call('/api/import/lookup', {
 		method: 'POST',
@@ -66,5 +67,10 @@ for (;;) {
 	const progress = await response.json();
 	console.log(`${progress.done}/${progress.total}`);
 	if (progress.done >= progress.total) break;
+	if (progress.done === lastDone && progress.after === after) {
+		console.error('The lookup made no progress, stopping.');
+		process.exit(1);
+	}
+	lastDone = progress.done;
 	after = progress.after;
 }

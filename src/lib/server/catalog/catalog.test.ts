@@ -1084,6 +1084,38 @@ describe('Changing the Cover of an Album', () => {
 			expect(candidates[2].imageUrl).toContain('coverartarchive.org/release-group/mb-2/');
 		});
 
+		it('fall back to the search hits when the release group has no release with a front image', async () => {
+			fakeAlbums.push(group({ releases: [{ id: 'rel-none', cover: null }] }));
+			const record = await addRecord({ artist: 'Air', album: 'Moon Safari' });
+
+			const candidates = await catalog.listCoverCandidates(token, record.album.id);
+			expect(candidates.map((c) => [c.source, c.id])).toEqual([['release-group', 'mb-air']]);
+		});
+
+		it('keeps a Cover the Owner picks while the lookup is running', async () => {
+			fakeAlbums.push(group({ cover: 'looked-up', releases: [{ id: 'rel-x', cover: 'chosen' }] }));
+			const real = vi.mocked(globalThis.fetch).getMockImplementation()!;
+			let picked = false;
+			vi.mocked(globalThis.fetch).mockImplementation(async (input, init) => {
+				const url = new URL(new Request(input as RequestInfo, init).url);
+				if (!picked && url.pathname.includes('/release-group/mb-air/')) {
+					picked = true;
+					const row = await env.DB.prepare('SELECT id FROM album').first<{ id: number }>();
+					const id = row!.id;
+					await catalog.pickCover(token, {
+						albumId: id,
+						candidateId: 'rel-x',
+						source: 'release'
+					});
+				}
+				return real(input, init);
+			});
+			await addRecord({ artist: 'Air', album: 'Moon Safari' });
+			const moon = (await catalog.listRecords()).records[0].album;
+			expect(moon.coverChosen).toBe(true);
+			expect(await (await env.COVERS.get(moon.coverKey!))?.text()).toBe('chosen');
+		});
+
 		it('make at most one MusicBrainz request per interval', async () => {
 			const slow = createCatalog(env, { lookupIntervalMs: 60 });
 			fakeAlbums.push(group({ releases: [{ id: 'r', cover: 'x' }] }));

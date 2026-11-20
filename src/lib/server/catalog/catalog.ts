@@ -227,12 +227,16 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 			await db.update(albums).set({ musicbrainzId: NO_MATCH }).where(eq(albums.id, albumId));
 			return;
 		}
-		const [{ coverChosen }] = await db
-			.select({ coverChosen: albums.coverChosen })
-			.from(albums)
-			.where(eq(albums.id, albumId));
-		const keepCover = coverChosen && !replace;
-		const cover = keepCover ? null : await findCover(match.musicbrainzId);
+		const isChosen = async () =>
+			(
+				await db
+					.select({ coverChosen: albums.coverChosen })
+					.from(albums)
+					.where(eq(albums.id, albumId))
+			)[0].coverChosen;
+		const found = !replace && (await isChosen()) ? null : await findCover(match.musicbrainzId);
+		// The Owner may have picked a Cover while the lookup was running.
+		const cover = found && (replace || !(await isChosen())) ? found : null;
 		const coverKey = `covers/${albumId}`;
 		if (cover) {
 			await env.COVERS.put(coverKey, cover.body, {
@@ -369,9 +373,11 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 					.where(eq(albums.id, albumId))
 			)[0];
 			if (!album) throw new Error('Album not found');
-			return album.musicbrainzId && album.musicbrainzId !== NO_MATCH
-				? findReleaseCandidates(album.musicbrainzId, intervalMs)
-				: searchCandidates(album.artist, album.title, intervalMs);
+			if (album.musicbrainzId && album.musicbrainzId !== NO_MATCH) {
+				const releases = await findReleaseCandidates(album.musicbrainzId, intervalMs);
+				if (releases.length) return releases;
+			}
+			return searchCandidates(album.artist, album.title, intervalMs);
 		},
 
 		async pickCover(token, input) {

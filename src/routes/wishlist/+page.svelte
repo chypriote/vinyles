@@ -226,7 +226,11 @@
 	<Popup bind:open={coverOpen} album="Change cover">
 		{#snippet details()}
 			{#if selected}
-				<CoverPicker albumId={selected.album.id} onDone={() => (coverOpen = false)} />
+				<CoverPicker
+					albumId={selected.album.id}
+					onBack={() => (coverOpen = false)}
+					onDone={() => (coverOpen = false)}
+				/>
 			{/if}
 		{/snippet}
 	</Popup>

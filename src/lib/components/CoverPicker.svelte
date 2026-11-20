@@ -7,14 +7,17 @@
 
 	let {
 		albumId,
+		onBack,
 		onDone
 	}: {
 		albumId: number;
+		onBack: () => void;
 		onDone: () => void;
 	} = $props();
 
 	let candidates = $state<CoverCandidate[] | null>(null);
 	let error = $state<string | null>(null);
+	let pickError = $state<string | null>(null);
 	let picked = $state<CoverCandidate | null>(null);
 	let confirmOpen = $state(false);
 	let busy = $state(false);
@@ -38,22 +41,31 @@
 	async function useCover() {
 		if (!picked) return;
 		busy = true;
-		const response = await fetch(`/api/albums/${albumId}/cover`, {
-			method: 'POST',
-			headers: { 'content-type': 'application/json' },
-			body: JSON.stringify({ candidateId: picked.id, source: picked.source })
-		});
-		busy = false;
-		if (response.ok) {
-			await invalidateAll();
-			onDone();
-		} else {
-			error = ((await response.json()) as { error?: string }).error ?? 'Could not change the cover';
+		try {
+			const response = await fetch(`/api/albums/${albumId}/cover`, {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ candidateId: picked.id, source: picked.source })
+			});
+			if (response.ok) {
+				await invalidateAll();
+				onDone();
+			} else {
+				pickError =
+					((await response.json()) as { error?: string }).error ?? 'Could not change the cover';
+			}
+		} catch {
+			pickError = 'Could not change the cover';
+		} finally {
+			busy = false;
 		}
 	}
 </script>
 
 <div class="flex flex-col gap-3">
+	{#if pickError}
+		<p role="alert" class="text-sm text-destructive">{pickError}</p>
+	{/if}
 	{#if error}
 		<p role="alert" class="text-sm text-destructive">{error}</p>
 	{:else if candidates === null}
@@ -86,7 +98,7 @@
 			{/each}
 		</ul>
 	{/if}
-	<Button onclick={onDone}>Back</Button>
+	<Button onclick={onBack}>Back</Button>
 </div>
 
 <ConfirmDialog

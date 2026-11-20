@@ -198,6 +198,7 @@
 			{#if changingCover}
 				<CoverPicker
 					albumId={selected.album.id}
+					onBack={() => (changingCover = false)}
 					onDone={() => {
 						changingCover = false;
 						editOpen = false;
