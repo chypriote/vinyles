@@ -87,9 +87,13 @@
 	let gotItOpen = $state(false);
 	let coverOpen = $state(false);
 
+	let dropping = $state(false);
+
 	async function drop() {
 		if (!selected) return;
+		dropping = true;
 		const outcome = await postAction('?/drop', { id: selected.id });
+		dropping = false;
 		if (outcome.ok) open = false;
 	}
 
@@ -216,7 +220,7 @@
 				>
 					Change cover
 				</Button>
-				<Button onclick={drop}>Drop</Button>
+				<Button loading={dropping} onclick={drop}>Drop</Button>
 			{/if}
 		{/snippet}
 	</Popup>

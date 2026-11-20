@@ -27,6 +27,7 @@
 	let error = $state<string | null>(null);
 	let alreadyOwned = $state(false);
 	let busy = $state(false);
+	let addingAnyway = $state(false);
 
 	const listId = $props.id();
 	const desireLabelId = `${listId}-desire`;
@@ -50,6 +51,7 @@
 			return;
 		}
 		busy = true;
+		addingAnyway = addAnyway;
 		const outcome = await postAction('?/addWishlistItem', input);
 		busy = false;
 		if (!outcome.ok) error = outcome.error;
@@ -109,12 +111,23 @@
 	{#if alreadyOwned}
 		<div class="flex flex-col gap-2 rounded-xl bg-muted p-3" role="status">
 			<p class="text-sm font-medium">Already owned</p>
-			<div><Button disabled={busy} onclick={() => save(true)}>Add anyway</Button></div>
+			<div>
+				<Button disabled={busy} loading={busy && addingAnyway} onclick={() => save(true)}>
+					Add anyway
+				</Button>
+			</div>
 		</div>
 	{/if}
 	{#if error}<p class="text-sm font-medium text-foreground" role="alert">! {error}</p>{/if}
 	<div class="flex flex-wrap gap-2">
-		<Button intent="success" type="submit" disabled={busy}>Save</Button>
+		<Button
+			intent="success"
+			type="submit"
+			disabled={busy && addingAnyway}
+			loading={busy && !addingAnyway}
+		>
+			Save
+		</Button>
 		<Button onclick={onDone}>Cancel</Button>
 	</div>
 </form>

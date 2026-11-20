@@ -33,7 +33,7 @@
 	<AcquisitionFields bind:acquisition {stores} onAddStore={addStore} />
 	{#if error}<p class="text-sm font-medium text-foreground" role="alert">! {error}</p>{/if}
 	<div class="flex flex-wrap gap-2">
-		<Button intent="success" type="submit" disabled={busy}>Save</Button>
+		<Button intent="success" type="submit" loading={busy}>Save</Button>
 		<Button onclick={onDone}>Cancel</Button>
 	</div>
 </form>
