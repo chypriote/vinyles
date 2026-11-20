@@ -13,7 +13,6 @@ import { checkCoverImage } from './cover-check';
 import {
 	AUTOMATIC_STORES,
 	cheapestMatch,
-	readOffers,
 	readPagePrice,
 	readShopifySuggestions,
 	shopifySuggestUrl,
@@ -276,36 +275,33 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 
 	type Found = { priceCents: number; url: string } | 'none' | 'unreadable';
 
-	/** The price at one Store, from its search page: found, no matching product, or unreadable. */
+	/** The price at one Store, from its search suggestions: found, no matching product, or unreadable. */
 	async function priceAt(store: AutomaticStore, artist: string, album: string): Promise<Found> {
 		const query = `${artist} ${album} vinyl`;
 		const searchUrl = store.searchUrl(query);
-		if (store.shopify) {
-			const text = await readPage(shopifySuggestUrl(searchUrl, query));
-			let offers: Offer[] | null = null;
-			try {
-				offers =
-					text === null
-						? null
-						: readShopifySuggestions(JSON.parse(text), new URL(searchUrl).origin);
-			} catch {
-				// Not JSON: the shop is not readable this way.
-			}
-			if (offers === null) {
-				if (text !== null) console.warn(`Refresh: ${store.name} suggestions are not Shopify JSON`);
-				return 'unreadable';
-			}
-			const match = cheapestMatch(offers, artist, album);
-			return match ? { priceCents: match.priceCents, url: match.url ?? searchUrl } : 'none';
+		const text = await readPage(shopifySuggestUrl(searchUrl, query));
+		let offers: Offer[] | null = null;
+		try {
+			offers =
+				text === null ? null : readShopifySuggestions(JSON.parse(text), new URL(searchUrl).origin);
+		} catch {
+			// Not JSON: the shop cannot be read this way.
 		}
-		const html = await readPage(searchUrl);
-		if (html === null) return 'unreadable';
-		const page = readOffers(html, searchUrl);
-		if (page.products === 0) {
-			console.warn(`Refresh: ${store.name} page has no product data (${html.length} bytes)`);
+		if (offers === null) {
+			if (text !== null) console.warn(`Refresh: ${store.name} suggestions are not Shopify JSON`);
 			return 'unreadable';
 		}
-		const match = cheapestMatch(page.offers, artist, album);
+		const match = cheapestMatch(offers, artist, album);
+		console.log(
+			`Refresh: ${store.name} ${offers.length} products${
+				match
+					? `, match "${match.name}"`
+					: `, none match ${artist} / ${album}: ${offers
+							.map((o) => o.name)
+							.slice(0, 3)
+							.join(' | ')}`
+			}`
+		);
 		return match ? { priceCents: match.priceCents, url: match.url ?? searchUrl } : 'none';
 	}
 
