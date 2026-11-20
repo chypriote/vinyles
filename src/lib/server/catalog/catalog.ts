@@ -263,8 +263,10 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 				headers: { 'user-agent': PAGE_USER_AGENT, 'accept-language': 'fr,en;q=0.8' },
 				signal: AbortSignal.timeout(PAGE_TIMEOUT_MS)
 			});
+			if (!response.ok) console.warn(`Refresh: ${new URL(url).host} answered ${response.status}`);
 			return response.ok ? await response.text() : null;
-		} catch {
+		} catch (error) {
+			console.warn(`Refresh: ${new URL(url).host} failed: ${error}`);
 			return null;
 		}
 	}
@@ -277,7 +279,10 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 		const html = await readPage(searchUrl);
 		if (html === null) return 'unreadable';
 		const page = readOffers(html, searchUrl);
-		if (page.products === 0) return 'unreadable';
+		if (page.products === 0) {
+			console.warn(`Refresh: ${store.name} page has no product data (${html.length} bytes)`);
+			return 'unreadable';
+		}
 		const match = cheapestMatch(page.offers, artist, album);
 		return match ? { priceCents: match.priceCents, url: match.url ?? searchUrl } : 'none';
 	}
@@ -286,6 +291,9 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 	async function priceAtLink(url: string): Promise<Found> {
 		const html = await readPage(url);
 		const priceCents = html === null ? null : readPagePrice(html, url);
+		if (html !== null && priceCents === null) {
+			console.warn(`Refresh: no price on ${new URL(url).host} page (${html.length} bytes)`);
+		}
 		return priceCents === null ? 'unreadable' : { priceCents, url };
 	}
 
