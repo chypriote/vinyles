@@ -397,6 +397,59 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 		}
 	}
 
+	/** Reads the price of one Wishlist Item at its Stores and replaces the quotes. */
+	async function refreshItem(wishlistItemId: number): Promise<WishlistItemView> {
+		const item = (await loadWishlist(wishlistItemId))[0];
+		if (!item) throw new Error('Wishlist Item not found');
+		const { artist, title } = item.album;
+		await db
+			.insert(stores)
+			.values(AUTOMATIC_STORES.map((s) => ({ name: s.name })))
+			.onConflictDoNothing();
+		const storeIds = new Map((await db.select().from(stores)).map((s) => [s.name, s.id] as const));
+		const linked = new Map(item.productLinks.map((l) => [l.store.id, l.url]));
+		const found = await Promise.all([
+			...AUTOMATIC_STORES.filter((s) => !linked.has(storeIds.get(s.name)!)).map(async (s) => ({
+				storeId: storeIds.get(s.name)!,
+				price: await priceAt(s, artist, title)
+			})),
+			...[...linked].map(async ([storeId, url]) => ({
+				storeId,
+				price: await priceAtLink(url)
+			}))
+		]);
+		const writes: unknown[] = [];
+		for (const { storeId, price } of found) {
+			if (price === 'unreadable') continue;
+			writes.push(
+				price === 'none'
+					? db
+							.delete(priceQuotes)
+							.where(
+								and(
+									eq(priceQuotes.wishlistItemId, wishlistItemId),
+									eq(priceQuotes.storeId, storeId)
+								)
+							)
+					: db
+							.insert(priceQuotes)
+							.values({ wishlistItemId, storeId, ...price })
+							.onConflictDoUpdate({
+								target: [priceQuotes.wishlistItemId, priceQuotes.storeId],
+								set: price
+							})
+			);
+		}
+		await run([
+			...writes,
+			db
+				.update(wishlistItems)
+				.set({ refreshedAt: new Date().toISOString() })
+				.where(eq(wishlistItems.id, wishlistItemId))
+		]);
+		return (await loadWishlist(wishlistItemId))[0];
+	}
+
 	const oneRecord = async (id: number) => (await loadRecords(id))[0];
 
 	// --- Import helpers --------------------------------------------------------
@@ -680,51 +733,19 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 
 		async refreshPrices(token, wishlistItemId) {
 			await owner(token);
-			const item = (await loadWishlist(wishlistItemId))[0];
-			if (!item) throw new Error('Wishlist Item not found');
-			const { artist, title } = item.album;
-			await db
-				.insert(stores)
-				.values(AUTOMATIC_STORES.map((s) => ({ name: s.name })))
-				.onConflictDoNothing();
-			const storeIds = new Map(
-				(await db.select().from(stores)).map((s) => [s.name, s.id] as const)
-			);
-			const linked = new Map(item.productLinks.map((l) => [l.store.id, l.url]));
-			const found = await Promise.all([
-				...AUTOMATIC_STORES.filter((s) => !linked.has(storeIds.get(s.name)!)).map(async (s) => ({
-					storeId: storeIds.get(s.name)!,
-					price: await priceAt(s, artist, title)
-				})),
-				...[...linked].map(async ([storeId, url]) => ({
-					storeId,
-					price: await priceAtLink(url)
-				}))
-			]);
-			const writes: unknown[] = [];
-			for (const { storeId, price } of found) {
-				if (price === 'unreadable') continue;
-				writes.push(
-					price === 'none'
-						? db
-								.delete(priceQuotes)
-								.where(
-									and(
-										eq(priceQuotes.wishlistItemId, wishlistItemId),
-										eq(priceQuotes.storeId, storeId)
-									)
-								)
-						: db
-								.insert(priceQuotes)
-								.values({ wishlistItemId, storeId, ...price })
-								.onConflictDoUpdate({
-									target: [priceQuotes.wishlistItemId, priceQuotes.storeId],
-									set: price
-								})
-				);
-			}
-			await run(writes);
-			return (await loadWishlist(wishlistItemId))[0];
+			return refreshItem(wishlistItemId);
+		},
+
+		async refreshOldest({ size, olderThanDays }) {
+			const cutoff = new Date(Date.now() - olderThanDays * 86_400_000).toISOString();
+			const due = await db
+				.select({ id: wishlistItems.id })
+				.from(wishlistItems)
+				.where(or(isNull(wishlistItems.refreshedAt), lte(wishlistItems.refreshedAt, cutoff)))
+				.orderBy(sql`${wishlistItems.refreshedAt} ASC NULLS FIRST`, wishlistItems.id)
+				.limit(size);
+			for (const { id } of due) await refreshItem(id);
+			return { refreshed: due.length };
 		},
 
 		async setProductLink(token, input) {
