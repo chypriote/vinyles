@@ -9,10 +9,12 @@ const SORTS: RecordSortKey[] = ['artist', 'album', 'year', 'acquired'];
 /** Filtered and sorted Records: the Catalog applies the rules, this only reads the query. */
 export const GET: RequestHandler = async ({ url, platform }) => {
 	const sort = url.searchParams.get('sort') as RecordSortKey;
+	const direction = url.searchParams.get('direction');
 	const { records } = await catalogFromPlatform(platform).listRecords({
 		search: url.searchParams.get('search') ?? undefined,
 		artist: url.searchParams.get('artist') ?? undefined,
-		sort: SORTS.includes(sort) ? sort : undefined
+		sort: SORTS.includes(sort) ? sort : undefined,
+		direction: direction === 'asc' || direction === 'desc' ? direction : undefined
 	});
 	return json({ records: withCoverUrls(records) });
 };
