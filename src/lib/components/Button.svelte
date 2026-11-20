@@ -4,6 +4,7 @@
 
 	let {
 		intent = 'neutral',
+		size = 'default',
 		disabled = false,
 		loading = false,
 		onclick,
@@ -12,6 +13,7 @@
 		children
 	}: {
 		intent?: 'success' | 'neutral' | 'danger';
+		size?: 'default' | 'sm';
 		class?: string;
 		disabled?: boolean;
 		loading?: boolean;
@@ -21,6 +23,6 @@
 	} = $props();
 </script>
 
-<Button variant={intent} {disabled} {loading} {type} {onclick} class={className}>
+<Button variant={intent} {size} {disabled} {loading} {type} {onclick} class={className}>
 	{@render children?.()}
 </Button>

@@ -14,6 +14,7 @@
 			},
 			size: {
 				default: "min-h-11",
+				sm: "min-h-8 px-3",
 				icon: "size-11 min-h-11 px-0",
 			},
 		},

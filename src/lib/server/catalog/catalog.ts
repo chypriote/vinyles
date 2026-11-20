@@ -761,7 +761,11 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 			const [[{ id }]] = (await db.batch([
 				db
 					.insert(records)
-					.values({ albumId: item.albumId, variant: item.variant, ...acquisition })
+					.values({
+						albumId: item.albumId,
+						variant: input.variant === undefined ? item.variant : cleanOrNull(input.variant),
+						...acquisition
+					})
 					.returning({ id: records.id }),
 				db.delete(wishlistItems).where(eq(wishlistItems.id, item.id))
 			])) as unknown as [{ id: number }[], unknown];

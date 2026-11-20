@@ -766,6 +766,22 @@ describe('Wishlist', () => {
 		expect(record.acquisition).toEqual({ kind: 'gift', date: '2024-12-25', giver: 'Nico' });
 	});
 
+	it('Got it can set or clear the variant of the Record', async () => {
+		const added = await catalog.addWishlistItem(token, {
+			artist: 'A',
+			album: 'B',
+			variant: 'Blue',
+			desire: 2
+		});
+		if (added.status !== 'added') throw new Error();
+		const record = await catalog.gotIt(token, {
+			wishlistItemId: added.item.id,
+			variant: 'Red',
+			acquisition: gift('2024-12-25', 'Nico')
+		});
+		expect(record.variant).toBe('Red');
+	});
+
 	it('Got it refuses an unknown Wishlist Item and keeps the Collection unchanged', async () => {
 		await expect(
 			catalog.gotIt(token, { wishlistItemId: 999, acquisition: gift() })

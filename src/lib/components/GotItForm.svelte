@@ -6,11 +6,17 @@
 
 	let {
 		wishlistItemId,
+		variant: initialVariant,
 		stores,
 		onDone
-	}: { wishlistItemId: number; stores: { id: number; name: string }[]; onDone: () => void } =
-		$props();
+	}: {
+		wishlistItemId: number;
+		variant: string | null;
+		stores: { id: number; name: string }[];
+		onDone: () => void;
+	} = $props();
 
+	let variant = $state(initialVariant ?? '');
 	let acquisition = $state(emptyAcquisition());
 	let error = $state<string | null>(null);
 	let busy = $state(false);
@@ -23,7 +29,11 @@
 			return;
 		}
 		busy = true;
-		const outcome = await postAction('?/gotIt', { wishlistItemId, acquisition: input });
+		const outcome = await postAction('?/gotIt', {
+			wishlistItemId,
+			variant: variant.trim() || null,
+			acquisition: input
+		});
 		busy = false;
 		if (outcome.ok) onDone();
 		else error = outcome.error;
@@ -31,6 +41,7 @@
 </script>
 
 <form class="flex flex-col gap-4" onsubmit={submit}>
+	<Field label="Variant" bind:value={variant} />
 	<Field label="Date" type="date" required bind:value={acquisition.date} />
 	<AcquisitionFields bind:acquisition {stores} onAddStore={addStore} />
 	{#if error}<p class="text-sm font-medium text-foreground" role="alert">! {error}</p>{/if}
