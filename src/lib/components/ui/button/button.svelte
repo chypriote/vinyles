@@ -10,7 +10,7 @@
 				default: "bg-primary text-primary-foreground",
 				success: "bg-success text-success-foreground",
 				neutral: "bg-card text-foreground",
-				danger: "bg-destructive text-white dark:text-primary-foreground",
+				danger: "bg-destructive text-primary-foreground",
 			},
 			size: {
 				default: "min-h-11",

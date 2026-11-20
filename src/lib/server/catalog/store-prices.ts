@@ -1,9 +1,10 @@
-/** A Store the Refresh searches. Add a Store here to try it for every Wishlist Item. */
+/**
+ * A Shopify shop that the Refresh searches, through its search suggestions (JSON).
+ * Add a Store here to try it for every Wishlist Item. Fnac, Napalm Records and Amazon block the Worker.
+ */
 export interface AutomaticStore {
 	name: string;
 	searchUrl(query: string): string;
-	/** A Shopify shop: read its search suggestions (JSON) instead of the search page. */
-	shopify?: boolean;
 }
 
 const search = (base: string) => (query: string) => `${base}${encodeURIComponent(query)}`;
@@ -11,33 +12,11 @@ const search = (base: string) => (query: string) => `${base}${encodeURIComponent
 export const AUTOMATIC_STORES: AutomaticStore[] = [
 	{
 		name: 'Nuclear Blast',
-		searchUrl: search('https://www.nuclearblast.com/search?type=product&q='),
-		shopify: true
+		searchUrl: search('https://www.nuclearblast.com/search?type=product&q=')
 	},
-	{
-		name: 'Fnac',
-		searchUrl: search('https://www.fnac.com/SearchResult/ResultList.aspx?Search=')
-	},
-	{ name: 'Amazon', searchUrl: search('https://www.amazon.fr/s?k=') },
-	{
-		name: 'Impericon',
-		searchUrl: search('https://www.impericon.com/search?type=product&q='),
-		shopify: true
-	},
-	{
-		name: 'Sound of Vinyl',
-		searchUrl: search('https://thesoundofvinyl.com/search?q='),
-		shopify: true
-	},
-	{
-		name: 'Napalm Records',
-		searchUrl: search('https://napalmrecords.com/english/catalogsearch/result/?q=')
-	},
-	{
-		name: 'AFM Records',
-		searchUrl: search('https://www.afm-records.de/search?type=product&q='),
-		shopify: true
-	}
+	{ name: 'Impericon', searchUrl: search('https://www.impericon.com/search?type=product&q=') },
+	{ name: 'Sound of Vinyl', searchUrl: search('https://thesoundofvinyl.com/search?q=') },
+	{ name: 'AFM Records', searchUrl: search('https://www.afm-records.de/search?type=product&q=') }
 ];
 
 /** The JSON address of the product suggestions of a Shopify shop for a search. */

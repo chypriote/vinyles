@@ -21,6 +21,10 @@ const html = (...products: { name: string; price: string }[]) =>
 		)}</script>`
 	);
 
+/** The answer of a Shopify search suggestion request. */
+const suggestions = (...products: { title: string; price: string; url: string }[]) =>
+	Response.json({ resources: { results: { products } } });
+
 const host = (name: string) =>
 	new URL(AUTOMATIC_STORES.find((s) => s.name === name)!.searchUrl('x')).host;
 
@@ -75,54 +79,76 @@ describe('Refresh prices', () => {
 		expect(requested.map((u) => u.host).sort()).toEqual(
 			AUTOMATIC_STORES.map((s) => new URL(s.searchUrl('x')).host).sort()
 		);
-		expect(decodeURIComponent(requested[0].search)).toContain('Air Talkie Walkie');
+		expect(requested.every((u) => u.pathname === '/search/suggest.json')).toBe(true);
+		expect(requested[0].searchParams.get('q')).toBe('Air Talkie Walkie vinyl');
 	});
 
-	it('creates one Price Quote per Store with the cheapest matching product', async () => {
+	it('creates one Price Quote per Store with the cheapest matching product, linked to the product', async () => {
 		const item = await addItem();
 		pages.set(
-			host('Fnac'),
-			html(
-				{ name: 'Air - Talkie Walkie (LP)', price: '31,99' },
-				{ name: 'Air - Talkie Walkie (Orange LP)', price: '27.50' },
-				{ name: 'Air - Moon Safari', price: '10' }
+			host('Impericon'),
+			suggestions(
+				{ title: 'Air - Talkie Walkie LP', price: '31.99', url: '/products/a' },
+				{ title: 'Air - Talkie Walkie (Orange LP)', price: '27.50', url: '/products/b' },
+				{ title: 'Air - Moon Safari', price: '10', url: '/products/c' }
 			)
 		);
-		pages.set(host('Napalm Records'), html({ name: 'Air Talkie Walkie', price: '29.99' }));
+		pages.set(
+			host('Nuclear Blast'),
+			suggestions({ title: 'Air Talkie Walkie', price: '29.99', url: '/products/d' })
+		);
 		const refreshed = await catalog.refreshPrices(token, item.id);
 		expect(refreshed.priceQuotes.map((q) => [q.store.name, q.priceCents])).toEqual([
-			['Fnac', 2750],
-			['Napalm Records', 2999]
+			['Impericon', 2750],
+			['Nuclear Blast', 2999]
 		]);
-		expect(refreshed.priceQuotes[0].url).toContain(host('Fnac'));
+		expect(refreshed.priceQuotes[0].url).toBe('https://www.impericon.com/products/b');
 	});
 
 	it('replaces the quote of a Store, and drops it when the Store has no matching product', async () => {
 		const item = await addItem();
-		pages.set(host('Fnac'), html({ name: 'Air - Talkie Walkie', price: '30' }));
-		pages.set(host('Napalm Records'), html({ name: 'Air - Talkie Walkie', price: '40' }));
+		pages.set(
+			host('Impericon'),
+			suggestions({ title: 'Air - Talkie Walkie', price: '30', url: '/p/1' })
+		);
+		pages.set(
+			host('Nuclear Blast'),
+			suggestions({ title: 'Air - Talkie Walkie', price: '40', url: '/p/2' })
+		);
 		await catalog.refreshPrices(token, item.id);
 
-		pages.set(host('Fnac'), html({ name: 'Air - Talkie Walkie', price: '28' }));
-		pages.set(host('Napalm Records'), html({ name: 'Air - Moon Safari', price: '40' }));
+		pages.set(
+			host('Impericon'),
+			suggestions({ title: 'Air - Talkie Walkie', price: '28', url: '/p/1' })
+		);
+		pages.set(
+			host('Nuclear Blast'),
+			suggestions({ title: 'Air - Moon Safari', price: '40', url: '/p/3' })
+		);
 		const refreshed = await catalog.refreshPrices(token, item.id);
 		expect(refreshed.priceQuotes.map((q) => [q.store.name, q.priceCents])).toEqual([
-			['Fnac', 2800]
+			['Impericon', 2800]
 		]);
 	});
 
-	it('keeps the old quote when a Store fails or has no readable products', async () => {
+	it('keeps the old quote when a Store fails or does not answer with suggestions', async () => {
 		const item = await addItem();
-		pages.set(host('Fnac'), html({ name: 'Air - Talkie Walkie', price: '30' }));
-		pages.set(host('Napalm Records'), html({ name: 'Air - Talkie Walkie', price: '40' }));
+		pages.set(
+			host('Impericon'),
+			suggestions({ title: 'Air - Talkie Walkie', price: '30', url: '/p/1' })
+		);
+		pages.set(
+			host('Nuclear Blast'),
+			suggestions({ title: 'Air - Talkie Walkie', price: '40', url: '/p/2' })
+		);
 		await catalog.refreshPrices(token, item.id);
 
-		pages.set(host('Fnac'), new Response('blocked', { status: 403 }));
-		pages.set(host('Napalm Records'), new Response('<html>no data</html>'));
+		pages.set(host('Impericon'), new Response('blocked', { status: 403 }));
+		pages.set(host('Nuclear Blast'), new Response('<html>not json</html>'));
 		const refreshed = await catalog.refreshPrices(token, item.id);
 		expect(refreshed.priceQuotes.map((q) => [q.store.name, q.priceCents])).toEqual([
-			['Fnac', 3000],
-			['Napalm Records', 4000]
+			['Impericon', 3000],
+			['Nuclear Blast', 4000]
 		]);
 	});
 });
@@ -135,20 +161,19 @@ describe('Product Link', () => {
 
 	it('is read instead of searching the Store, and the quote links to it', async () => {
 		const item = await addItem();
-		const fnac = (await catalog.addStore(token, { name: 'Fnac' })).id;
-		await link(fnac, item.id, 'https://www.fnac.com/a1/Air-Talkie-Walkie');
-		pages.set(host('Fnac'), html({ name: 'Air - Talkie Walkie', price: '99' }));
-		pages.set('www.fnac.com', html({ name: 'whatever', price: '26,5' }));
+		const impericon = (await catalog.addStore(token, { name: 'Impericon' })).id;
+		await link(impericon, item.id, 'https://www.impericon.com/products/air-talkie-walkie');
+		pages.set(host('Impericon'), html({ name: 'whatever', price: '26,5' }));
 		const refreshed = await catalog.refreshPrices(token, item.id);
-		expect(requested.map((u) => u.pathname)).toContain('/a1/Air-Talkie-Walkie');
+		expect(requested.map((u) => u.pathname)).toContain('/products/air-talkie-walkie');
 		expect(
-			requested.filter((u) => u.host === host('Fnac') && u.pathname.includes('Search'))
+			requested.filter((u) => u.pathname === '/search/suggest.json' && u.host === host('Impericon'))
 		).toEqual([]);
 		expect(refreshed.priceQuotes).toMatchObject([
 			{
-				store: { name: 'Fnac' },
+				store: { name: 'Impericon' },
 				priceCents: 2650,
-				url: 'https://www.fnac.com/a1/Air-Talkie-Walkie'
+				url: 'https://www.impericon.com/products/air-talkie-walkie'
 			}
 		]);
 	});
@@ -217,6 +242,55 @@ describe('Product Link', () => {
 			n: number;
 		}>();
 		expect(rows?.n).toBe(0);
+	});
+});
+
+describe('Refresh of the oldest items', () => {
+	const add = async (album: string) => {
+		const result = await catalog.addWishlistItem(token, { artist: 'Air', album, desire: 2 });
+		if (result.status !== 'added') throw new Error('not added');
+		return result.item.id;
+	};
+	const setRefreshed = (id: number, at: string | null) =>
+		env.DB.prepare('UPDATE wishlist_item SET refreshed_at = ? WHERE id = ?').bind(at, id).run();
+	const refreshedAt = async (id: number) =>
+		(
+			await env.DB.prepare('SELECT refreshed_at AS at FROM wishlist_item WHERE id = ?')
+				.bind(id)
+				.first<{ at: string | null }>()
+		)?.at;
+	const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString();
+	/** Items whose Artist and Album were asked for, by search query. */
+	const searched = () => [...new Set(requested.map((u) => u.searchParams.values().next().value))];
+
+	it('takes never refreshed items first, then the longest ago, up to the batch size', async () => {
+		const old = await add('Old');
+		const never = await add('Never');
+		const older = await add('Older');
+		const oldAt = daysAgo(20);
+		await setRefreshed(old, oldAt);
+		await setRefreshed(older, daysAgo(30));
+		expect(await catalog.refreshOldest({ size: 2, olderThanDays: 14 })).toEqual({ refreshed: 2 });
+		expect(searched().sort()).toEqual(['Air Never vinyl', 'Air Older vinyl']);
+		expect(await refreshedAt(never)).not.toBeNull();
+		expect(await refreshedAt(old)).toBe(oldAt);
+	});
+
+	it('skips items refreshed within the period, and refreshes the rest on the next run', async () => {
+		const recent = await add('Recent');
+		const stale = await add('Stale');
+		await setRefreshed(recent, daysAgo(3));
+		await setRefreshed(stale, daysAgo(15));
+		expect(await catalog.refreshOldest({ size: 5, olderThanDays: 14 })).toEqual({ refreshed: 1 });
+		expect(searched()).toEqual(['Air Stale vinyl']);
+		expect(await catalog.refreshOldest({ size: 5, olderThanDays: 14 })).toEqual({ refreshed: 0 });
+	});
+
+	it('marks an item refreshed even when every Store fails, so it does not block the others', async () => {
+		const id = await add('Blocked');
+		expect(await refreshedAt(id)).toBeNull();
+		await catalog.refreshOldest({ size: 1, olderThanDays: 14 });
+		expect(await refreshedAt(id)).not.toBeNull();
 	});
 });
 

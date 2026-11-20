@@ -155,6 +155,7 @@
 {#if selected}
 	<Popup
 		bind:open
+		large
 		{anchor}
 		album={selected.album.title}
 		artist={selected.album.artist}
@@ -232,8 +233,8 @@
 					artists={data.artists}
 					stores={data.stores}
 					onDone={() => (editOpen = false)}
+					onChangeCover={() => (changingCover = true)}
 				/>
-				<Button onclick={() => (changingCover = true)}>Change cover</Button>
 			{/if}
 		{/snippet}
 	</Popup>
