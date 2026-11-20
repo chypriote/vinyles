@@ -230,7 +230,7 @@
 	>
 		{#snippet details()}
 			<dl
-				class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-[15px] [&_dd]:font-extrabold [&_dd]:[overflow-wrap:break-word]"
+				class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1.5 text-[15px] [&_dd]:font-extrabold [&_dd]:[overflow-wrap:break-word]"
 			>
 				<dt class="text-muted-foreground">Year</dt>
 				<dd>{selected?.album.releaseYear ?? 'Unknown'}</dd>
