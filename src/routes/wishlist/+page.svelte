@@ -110,7 +110,7 @@
 	}
 </script>
 
-<svelte:head><title>Wishlist</title></svelte:head>
+<svelte:head><title>Vinyles | Wishlist</title></svelte:head>
 
 <StickyBar current="wishlist">
 	{#snippet chips()}

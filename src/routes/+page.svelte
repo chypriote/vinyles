@@ -99,7 +99,7 @@
 	}
 </script>
 
-<svelte:head><title>Collection</title></svelte:head>
+<svelte:head><title>Vinyles | Collection</title></svelte:head>
 
 <StickyBar current="collection">
 	{#snippet chips()}

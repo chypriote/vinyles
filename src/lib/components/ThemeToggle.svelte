@@ -2,7 +2,7 @@
 	import { onMount } from 'svelte';
 	import MoonIcon from '@lucide/svelte/icons/moon';
 	import SunIcon from '@lucide/svelte/icons/sun';
-	import Button from './Button.svelte';
+	import { Button } from './ui/button/index.js';
 
 	let dark = $state(false);
 
@@ -24,11 +24,15 @@
 	}
 </script>
 
-<Button onclick={toggle}>
+<Button
+	variant="neutral"
+	onclick={toggle}
+	class="size-7 min-h-0 px-0 after:absolute after:-inset-2 after:content-['']"
+>
 	{#if dark}
-		<SunIcon aria-hidden="true" class="size-5" />
+		<SunIcon aria-hidden="true" class="size-4" />
 	{:else}
-		<MoonIcon aria-hidden="true" class="size-5" />
+		<MoonIcon aria-hidden="true" class="size-4" />
 	{/if}
 	<span class="sr-only">{dark ? 'Switch to light theme' : 'Switch to dark theme'}</span>
 </Button>
