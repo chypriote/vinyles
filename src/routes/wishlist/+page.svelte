@@ -5,7 +5,9 @@
 	import type { WishlistItemView } from '#lib/server/catalog/types';
 	import { formatCents } from '#lib/format';
 	import { postAction } from '#lib/forms';
+	import ExternalLinkIcon from '@lucide/svelte/icons/external-link';
 	import Button from '#lib/components/Button.svelte';
+	import { Button as UiButton } from '#lib/components/ui/button/index.js';
 	import Chip from '#lib/components/Chip.svelte';
 	import Cover from '#lib/components/Cover.svelte';
 	import CoverPicker from '#lib/components/CoverPicker.svelte';
@@ -256,21 +258,35 @@
 							/>
 						</dd>
 					{/if}
-					{#each selected.priceQuotes as quote (quote.store.id)}
-						<dt class="text-muted-foreground">{quote.store.name}</dt>
-						<dd>
-							{#if quote.url}
-								<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- external store page -->
-								<a class="underline" href={quote.url} target="_blank" rel="noopener noreferrer">
-									{formatCents(quote.priceCents)}
-								</a>
-							{:else}
-								{formatCents(quote.priceCents)}
-							{/if}
-						</dd>
-					{/each}
 				{/if}
 			</dl>
+			{#if selected && selected.priceQuotes.length > 0}
+				<ul class="mt-4 flex flex-col gap-2" aria-label="Prices">
+					{#each selected.priceQuotes as quote (quote.store.id)}
+						<li class="flex items-center gap-3">
+							<span class="min-w-0 flex-1 font-extrabold [overflow-wrap:anywhere]">
+								{quote.store.name}
+							</span>
+							<span class="font-extrabold whitespace-nowrap">{formatCents(quote.priceCents)}</span>
+							{#if quote.url}
+								<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- external store page -->
+								<UiButton
+									variant="neutral"
+									size="icon"
+									href={quote.url}
+									target="_blank"
+									rel="noopener noreferrer"
+									aria-label={`Open ${quote.store.name}`}
+								>
+									<ExternalLinkIcon class="size-4" />
+								</UiButton>
+							{:else}
+								<span class="size-11 shrink-0" aria-hidden="true"></span>
+							{/if}
+						</li>
+					{/each}
+				</ul>
+			{/if}
 		{/snippet}
 		{#snippet actions()}
 			{#if data.isOwner}
