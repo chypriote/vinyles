@@ -242,6 +242,7 @@
 			{#if selected}
 				<CoverPicker
 					albumId={selected.album.id}
+					query={`${selected.album.artist} ${selected.album.title}`}
 					onBack={() => (coverOpen = false)}
 					onDone={() => (coverOpen = false)}
 				/>

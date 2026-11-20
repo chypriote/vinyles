@@ -38,7 +38,7 @@ export interface CoverCandidate {
 	source: 'release' | 'release-group';
 	/** Preview image. */
 	imageUrl: string;
-	/** Only for release-group search hits (Album without match). */
+	/** Only for release-group search hits. */
 	artist?: string;
 	title?: string;
 	year?: number | null;
@@ -258,6 +258,8 @@ export interface Catalog {
 	// Cover (Owner)
 	/** Candidate images for the Cover of an Album: loaded on request. */
 	listCoverCandidates(token: string, albumId: number): Promise<CoverCandidate[]>;
+	/** Candidate images for text the Owner typed (release-group search). */
+	searchCoverCandidates(token: string, query: string): Promise<CoverCandidate[]>;
 	/** Copies the picked image over the Cover of the Album and marks it Owner-chosen. */
 	pickCover(token: string, input: PickCoverInput): Promise<void>;
 

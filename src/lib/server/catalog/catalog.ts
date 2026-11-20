@@ -7,7 +7,8 @@ import {
 	findCandidateImage,
 	findCover,
 	findReleaseCandidates,
-	searchCandidates
+	searchCandidates,
+	searchTypedCandidates
 } from './lookup';
 import type {
 	AcquisitionInput,
@@ -378,6 +379,11 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 				if (releases.length) return releases;
 			}
 			return searchCandidates(album.artist, album.title, intervalMs);
+		},
+
+		async searchCoverCandidates(token, query) {
+			await owner(token);
+			return searchTypedCandidates(query, intervalMs);
 		},
 
 		async pickCover(token, input) {
