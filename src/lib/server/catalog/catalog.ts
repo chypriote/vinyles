@@ -1,8 +1,22 @@
 import { and, count, eq, gt, inArray, isNotNull, isNull, lte, ne, or, sql } from 'drizzle-orm';
 import { drizzle, type DrizzleD1Database } from 'drizzle-orm/d1';
-import { albums, artists, priceQuotes, records, stores, wishlistItems } from '../db/schema';
+import {
+	albums,
+	artists,
+	priceQuotes,
+	productLinks,
+	records,
+	stores,
+	wishlistItems
+} from '../db/schema';
 import { checkCoverImage } from './cover-check';
-import { AUTOMATIC_STORES, cheapestMatch, readOffers, type AutomaticStore } from './store-prices';
+import {
+	AUTOMATIC_STORES,
+	cheapestMatch,
+	readOffers,
+	readPagePrice,
+	type AutomaticStore
+} from './store-prices';
 import { issueToken, passwordMatches, tokenIsValid, UnauthorizedError } from './auth';
 import {
 	findAlbum,
@@ -24,6 +38,7 @@ import type {
 	ListFilters,
 	PriceQuote,
 	PriceQuoteInput,
+	ProductLink,
 	RecordSortKey,
 	RecordView,
 	SortKey,
@@ -207,6 +222,20 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 			})
 			.from(priceQuotes)
 			.innerJoin(stores, eq(priceQuotes.storeId, stores.id));
+		const linkRows = await db
+			.select({
+				itemId: productLinks.wishlistItemId,
+				store: { id: stores.id, name: stores.name },
+				url: productLinks.url
+			})
+			.from(productLinks)
+			.innerJoin(stores, eq(productLinks.storeId, stores.id));
+		const linksByItem = new Map<number, ProductLink[]>();
+		for (const l of linkRows) {
+			const list = linksByItem.get(l.itemId) ?? [];
+			list.push({ store: l.store, url: l.url });
+			linksByItem.set(l.itemId, list);
+		}
 		const quotesByItem = new Map<number, PriceQuote[]>();
 		for (const q of quoteRows) {
 			const list = quotesByItem.get(q.itemId) ?? [];
@@ -220,30 +249,44 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 			desire: row.desire as Desire,
 			priceQuotes: (quotesByItem.get(row.id) ?? []).sort((a, b) =>
 				compare(a.store.name, b.store.name)
+			),
+			productLinks: (linksByItem.get(row.id) ?? []).sort((a, b) =>
+				compare(a.store.name, b.store.name)
 			)
 		}));
 	}
 
-	/** The price at one Store: found, no matching product, or the Store could not be read. */
-	async function priceAt(
-		store: AutomaticStore,
-		artist: string,
-		album: string
-	): Promise<{ priceCents: number; url: string } | 'none' | 'unreadable'> {
-		const searchUrl = store.searchUrl(`${artist} ${album} vinyl`);
+	/** The HTML of a Store page, or null when it cannot be read. */
+	async function readPage(url: string): Promise<string | null> {
 		try {
-			const response = await fetch(searchUrl, {
+			const response = await fetch(url, {
 				headers: { 'user-agent': PAGE_USER_AGENT, 'accept-language': 'fr,en;q=0.8' },
 				signal: AbortSignal.timeout(PAGE_TIMEOUT_MS)
 			});
-			if (!response.ok) return 'unreadable';
-			const page = readOffers(await response.text(), searchUrl);
-			if (page.products === 0) return 'unreadable';
-			const match = cheapestMatch(page.offers, artist, album);
-			return match ? { priceCents: match.priceCents, url: match.url ?? searchUrl } : 'none';
+			return response.ok ? await response.text() : null;
 		} catch {
-			return 'unreadable';
+			return null;
 		}
+	}
+
+	type Found = { priceCents: number; url: string } | 'none' | 'unreadable';
+
+	/** The price at one Store, from its search page: found, no matching product, or unreadable. */
+	async function priceAt(store: AutomaticStore, artist: string, album: string): Promise<Found> {
+		const searchUrl = store.searchUrl(`${artist} ${album} vinyl`);
+		const html = await readPage(searchUrl);
+		if (html === null) return 'unreadable';
+		const page = readOffers(html, searchUrl);
+		if (page.products === 0) return 'unreadable';
+		const match = cheapestMatch(page.offers, artist, album);
+		return match ? { priceCents: match.priceCents, url: match.url ?? searchUrl } : 'none';
+	}
+
+	/** The price on a Product Link page: found, or unreadable. */
+	async function priceAtLink(url: string): Promise<Found> {
+		const html = await readPage(url);
+		const priceCents = html === null ? null : readPagePrice(html, url);
+		return priceCents === null ? 'unreadable' : { priceCents, url };
 	}
 
 	// --- Writes: shared pieces -------------------------------------------------
@@ -647,12 +690,17 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 			const storeIds = new Map(
 				(await db.select().from(stores)).map((s) => [s.name, s.id] as const)
 			);
-			const found = await Promise.all(
-				AUTOMATIC_STORES.map(async (s) => ({
+			const linked = new Map(item.productLinks.map((l) => [l.store.id, l.url]));
+			const found = await Promise.all([
+				...AUTOMATIC_STORES.filter((s) => !linked.has(storeIds.get(s.name)!)).map(async (s) => ({
 					storeId: storeIds.get(s.name)!,
 					price: await priceAt(s, artist, title)
+				})),
+				...[...linked].map(async ([storeId, url]) => ({
+					storeId,
+					price: await priceAtLink(url)
 				}))
-			);
+			]);
 			const writes: unknown[] = [];
 			for (const { storeId, price } of found) {
 				if (price === 'unreadable') continue;
@@ -677,6 +725,36 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 			}
 			await run(writes);
 			return (await loadWishlist(wishlistItemId))[0];
+		},
+
+		async setProductLink(token, input) {
+			await owner(token);
+			if (!(await loadWishlist(input.wishlistItemId))[0])
+				throw new Error('Wishlist Item not found');
+			if (!(await findStore(input.storeId))) throw new Error('Store not found');
+			const url = clean(input.url);
+			if (!/^https?:\/\/[^\s/]+/i.test(url))
+				throw new Error('The link must start with http:// or https://');
+			await db
+				.insert(productLinks)
+				.values({ wishlistItemId: input.wishlistItemId, storeId: input.storeId, url })
+				.onConflictDoUpdate({
+					target: [productLinks.wishlistItemId, productLinks.storeId],
+					set: { url }
+				});
+			return (await loadWishlist(input.wishlistItemId))[0];
+		},
+
+		async removeProductLink(token, { wishlistItemId, storeId }) {
+			await owner(token);
+			await db
+				.delete(productLinks)
+				.where(
+					and(eq(productLinks.wishlistItemId, wishlistItemId), eq(productLinks.storeId, storeId))
+				);
+			const item = (await loadWishlist(wishlistItemId))[0];
+			if (!item) throw new Error('Wishlist Item not found');
+			return item;
 		},
 
 		async importRows(token, input) {

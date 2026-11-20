@@ -73,6 +73,21 @@ export const wishlistItems = sqliteTable(
 	(t) => [check('wishlist_item_desire_range', sql`${t.desire} BETWEEN 1 AND 3`)]
 );
 
+export const productLinks = sqliteTable(
+	'product_link',
+	{
+		wishlistItemId: integer('wishlist_item_id')
+			.notNull()
+			.references(() => wishlistItems.id, { onDelete: 'cascade' }),
+		storeId: integer('store_id')
+			.notNull()
+			.references(() => stores.id),
+		url: text('url').notNull()
+	},
+	// One per Store per Wishlist Item.
+	(t) => [primaryKey({ columns: [t.wishlistItemId, t.storeId] })]
+);
+
 export const priceQuotes = sqliteTable(
 	'price_quote',
 	{
