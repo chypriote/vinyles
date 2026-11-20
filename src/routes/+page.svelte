@@ -209,7 +209,12 @@
 {/if}
 
 {#if data.isOwner && selected}
-	<Popup bind:open={editOpen} album="Edit record" onDismiss={() => (changingCover = false)}>
+	<Popup
+		bind:open={editOpen}
+		album="Edit record"
+		wide={changingCover}
+		onDismiss={() => (changingCover = false)}
+	>
 		{#snippet details()}
 			{#if changingCover}
 				<CoverPicker

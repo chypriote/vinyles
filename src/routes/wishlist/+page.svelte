@@ -241,7 +241,7 @@
 {/if}
 
 {#if data.isOwner && selected}
-	<Popup bind:open={coverOpen} album="Change cover">
+	<Popup bind:open={coverOpen} album="Change cover" wide>
 		{#snippet details()}
 			{#if selected}
 				<CoverPicker

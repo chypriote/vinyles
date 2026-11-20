@@ -9,6 +9,7 @@
 		album,
 		artist = '',
 		coverUrl = null,
+		wide = false,
 		onDismiss,
 		details,
 		actions
@@ -19,6 +20,8 @@
 		/** Empty for a form Popup: no cover tile and no subtitle. */
 		artist?: string;
 		coverUrl?: string | null;
+		/** A wider Popup, for the cover picker. */
+		wide?: boolean;
 		onDismiss?: () => void;
 		details?: Snippet;
 		actions?: Snippet;
@@ -64,6 +67,7 @@
 <Dialog.Root bind:open {onOpenChange}>
 	<Dialog.Content
 		bind:ref={content}
+		class={wide ? 'max-w-2xl' : undefined}
 		style={pos ? `left:${pos.left}px;top:${pos.top}px;translate:none` : undefined}
 		onCloseAutoFocus={(e: Event) => {
 			if (anchor) {
