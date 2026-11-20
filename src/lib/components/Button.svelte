@@ -4,13 +4,15 @@
 
 	let {
 		intent = 'neutral',
+		size = 'default',
 		disabled = false,
 		loading = false,
 		onclick,
 		type = 'button',
 		children
 	}: {
-		intent?: 'success' | 'neutral';
+		intent?: 'success' | 'neutral' | 'danger';
+		size?: 'default' | 'sm';
 		disabled?: boolean;
 		loading?: boolean;
 		onclick?: () => void;
@@ -19,6 +21,6 @@
 	} = $props();
 </script>
 
-<Button variant={intent} {disabled} {loading} {type} {onclick}>
+<Button variant={intent} {size} {disabled} {loading} {type} {onclick}>
 	{@render children?.()}
 </Button>

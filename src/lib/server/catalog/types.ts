@@ -191,6 +191,8 @@ export interface SetProductLinkInput {
 
 export interface GotItInput {
 	wishlistItemId: number;
+	/** Replaces the Wishlist Item's variant. Left out: the variant is kept. */
+	variant?: string | null;
 	acquisition: AcquisitionInput;
 }
 

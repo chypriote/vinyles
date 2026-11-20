@@ -74,7 +74,7 @@
 		{#if error}<p class="text-sm font-medium text-foreground" role="alert">! {error}</p>{/if}
 		<div class="flex flex-wrap gap-2">
 			<Button intent="success" type="submit" loading={busy}>Save and refresh</Button>
-			<Button onclick={onDone}>Close</Button>
+			<Button onclick={onDone}>Back</Button>
 		</div>
 	</form>
 </div>

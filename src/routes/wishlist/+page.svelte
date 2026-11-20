@@ -254,6 +254,7 @@
 							<DesirePicker
 								value={selected.desire}
 								busy={settingDesire}
+								compact
 								onPick={(level) => selected && setDesire([selected.id], level)}
 							/>
 						</dd>
@@ -290,15 +291,18 @@
 		{/snippet}
 		{#snippet actions()}
 			{#if data.isOwner}
-				<Button
-					intent="success"
-					onclick={() => {
-						open = false;
-						gotItOpen = true;
-					}}
-				>
-					Got it
-				</Button>
+				<div class="flex w-full gap-2">
+					<Button
+						intent="success"
+						onclick={() => {
+							open = false;
+							gotItOpen = true;
+						}}
+					>
+						Got it
+					</Button>
+					<Button intent="danger" loading={dropping} onclick={drop}>Drop</Button>
+				</div>
 				<Button
 					onclick={() => {
 						open = false;
@@ -324,7 +328,6 @@
 				>
 					Product links
 				</Button>
-				<Button loading={dropping} onclick={drop}>Drop</Button>
 				{#if refreshError}
 					<p class="text-sm font-extrabold text-destructive" role="alert">{refreshError}</p>
 				{/if}
@@ -339,6 +342,7 @@
 			{#if selected}
 				<GotItForm
 					wishlistItemId={selected.id}
+					variant={selected.variant}
 					stores={data.stores}
 					onDone={() => (gotItOpen = false)}
 				/>
@@ -369,7 +373,10 @@
 					itemId={selected.id}
 					links={selected.productLinks}
 					stores={data.stores}
-					onDone={() => (linksOpen = false)}
+					onDone={() => {
+						linksOpen = false;
+						open = true;
+					}}
 				/>
 			{/if}
 		{/snippet}
