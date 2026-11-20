@@ -1,0 +1,21 @@
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "vinyles",
+	"compatibility_date": "2026-11-01",
+	"compatibility_flags": ["nodejs_compat"],
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "vinyles",
+			"database_id": "REPLACE_WITH_D1_DATABASE_ID",
+			"migrations_dir": "drizzle"
+		}
+	],
+	"r2_buckets": [
+		{
+			"binding": "COVERS",
+			"bucket_name": "vinyles-covers"
+		}
+	]
+	// Secrets (not in this file): OWNER_PASSWORD and JWT_SECRET. See README.
+}

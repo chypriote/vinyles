@@ -1,0 +1,244 @@
+/**
+ * Public interface of the Catalog module: the one test seam.
+ * Types only. Domain names follow CONTEXT.md. Prices are integer euro cents.
+ */
+
+export type Desire = 1 | 2 | 3;
+export type AcquisitionKind = 'purchase' | 'gift';
+
+// --- Reads: shared shapes ----------------------------------------------------
+
+export interface Store {
+	id: number;
+	name: string;
+}
+
+export interface Artist {
+	id: number;
+	name: string;
+}
+
+/** What a Cover tile needs. `coverKey` is null when no Cover was found. */
+export interface AlbumSummary {
+	id: number;
+	artist: string;
+	title: string;
+	releaseYear: number | null;
+	coverKey: string | null;
+}
+
+export type Acquisition =
+	| { kind: 'purchase'; date: string; store: Store; priceCents: number }
+	| { kind: 'gift'; date: string; giver: string | null };
+
+export interface RecordView {
+	id: number;
+	album: AlbumSummary;
+	variant: string | null;
+	acquisition: Acquisition;
+}
+
+export interface PriceQuote {
+	store: Store;
+	priceCents: number;
+}
+
+export interface WishlistItemView {
+	id: number;
+	album: AlbumSummary;
+	variant: string | null;
+	desire: Desire;
+	priceQuotes: PriceQuote[];
+}
+
+// --- Lists -------------------------------------------------------------------
+
+export type SortKey = 'artist' | 'album' | 'year';
+export type RecordSortKey = SortKey | 'acquired';
+
+export interface ListFilters {
+	/** One search over Artist and Album. */
+	search?: string;
+	/** Exact Artist name. */
+	artist?: string;
+}
+
+export interface ListRecordsInput extends ListFilters {
+	sort?: RecordSortKey;
+}
+
+export interface ListWishlistInput extends ListFilters {
+	/** Several at once. Empty or missing = all. */
+	desires?: Desire[];
+	sort?: SortKey;
+}
+
+export interface CollectionTotals {
+	recordCount: number;
+	/** Sum of Purchase prices, in cents. */
+	totalSpentCents: number;
+}
+
+export interface ListRecordsResult {
+	records: RecordView[];
+	totals: CollectionTotals;
+}
+
+export interface ListWishlistResult {
+	items: WishlistItemView[];
+	count: number;
+}
+
+// --- Records -----------------------------------------------------------------
+
+export type AcquisitionInput =
+	| { kind: 'purchase'; date: string; storeId: number; priceCents: number }
+	| { kind: 'gift'; date: string; giver?: string | null };
+
+export interface AddRecordInput {
+	artist: string;
+	album: string;
+	variant?: string | null;
+	acquisition: AcquisitionInput;
+}
+
+export interface EditRecordInput {
+	id: number;
+	artist: string;
+	album: string;
+	variant?: string | null;
+	acquisition: AcquisitionInput;
+}
+
+// --- Wishlist ----------------------------------------------------------------
+
+export interface PriceQuoteInput {
+	storeId: number;
+	priceCents: number;
+}
+
+export interface AddWishlistItemInput {
+	artist: string;
+	album: string;
+	variant?: string | null;
+	desire: Desire;
+	priceQuotes?: PriceQuoteInput[];
+	/** Set to true after the "Already owned" notice. */
+	addAnyway?: boolean;
+}
+
+export type AddWishlistItemResult =
+	| { status: 'added'; item: WishlistItemView }
+	| { status: 'already-owned'; records: RecordView[] };
+
+export interface GotItInput {
+	wishlistItemId: number;
+	acquisition: AcquisitionInput;
+}
+
+// --- Stores and Artists ------------------------------------------------------
+
+export interface AddStoreInput {
+	name: string;
+}
+
+// --- Owner login -------------------------------------------------------------
+
+export type LoginResult = { ok: true; token: string } | { ok: false; error: 'wrong-password' };
+
+// --- Import (once) -----------------------------------------------------------
+
+/** Collection row from the sheet, already cleaned (Artiste, Album, Date, Acheté sur, Prix, Variant). */
+export interface ImportCollectionRow {
+	artist: string;
+	album: string;
+	variant?: string | null;
+	/** ISO date. */
+	date: string;
+	/** "Cadeau" in the sheet becomes `{ kind: 'gift' }`. */
+	acquisition: { kind: 'gift'; giver?: string | null } | { kind: 'purchase'; store: string; priceCents: number };
+}
+
+/** Wishlist row from the sheet, already cleaned. Bold = Desire 3, normal = Desire 2. */
+export interface ImportWishlistRow {
+	artist: string;
+	album: string;
+	variant?: string | null;
+	desire: Desire;
+	priceQuotes: { store: string; priceCents: number }[];
+}
+
+export interface ImportRowsInput {
+	collection: ImportCollectionRow[];
+	wishlist: ImportWishlistRow[];
+}
+
+export interface ImportRowsResult {
+	recordsImported: number;
+	wishlistItemsImported: number;
+}
+
+/** Progress of the Album lookup (MusicBrainz, then Cover Art Archive into R2). */
+export interface ImportProgress {
+	total: number;
+	done: number;
+}
+
+export interface LookupBatchInput {
+	/** Albums to look up in this request. Keep small: subrequest limit and one MusicBrainz request per second. */
+	size: number;
+}
+
+export interface UnmatchedAlbum {
+	albumId: number;
+	artist: string;
+	title: string;
+}
+
+export interface SaveYearsInput {
+	years: { albumId: number; releaseYear: number }[];
+}
+
+// --- Catalog -----------------------------------------------------------------
+
+/**
+ * Every rule and every D1 and R2 access lives behind this interface.
+ * Write operations take the Owner token and fail with `UnauthorizedError` if it is invalid.
+ */
+export interface Catalog {
+	// Reads (Viewer and Owner)
+	listRecords(input?: ListRecordsInput): Promise<ListRecordsResult>;
+	listWishlist(input?: ListWishlistInput): Promise<ListWishlistResult>;
+	listStores(): Promise<Store[]>;
+	listArtists(): Promise<Artist[]>;
+
+	// Owner login
+	login(password: string): Promise<LoginResult>;
+	verifyToken(token: string): Promise<boolean>;
+
+	// Records (Owner)
+	addRecord(token: string, input: AddRecordInput): Promise<RecordView>;
+	editRecord(token: string, input: EditRecordInput): Promise<RecordView>;
+	deleteRecord(token: string, id: number): Promise<void>;
+
+	// Stores (Owner)
+	addStore(token: string, input: AddStoreInput): Promise<Store>;
+
+	// Wishlist (Owner)
+	addWishlistItem(token: string, input: AddWishlistItemInput): Promise<AddWishlistItemResult>;
+	gotIt(token: string, input: GotItInput): Promise<RecordView>;
+	drop(token: string, wishlistItemId: number): Promise<void>;
+
+	// Import (Owner, once)
+	importRows(token: string, input: ImportRowsInput): Promise<ImportRowsResult>;
+	/** Looks up the next batch of Albums that have not been looked up yet. */
+	lookupNext(token: string, input: LookupBatchInput): Promise<ImportProgress>;
+	importProgress(token: string): Promise<ImportProgress>;
+	listUnmatchedAlbums(token: string): Promise<UnmatchedAlbum[]>;
+	saveYears(token: string, input: SaveYearsInput): Promise<void>;
+}
+
+/** Thrown by every Owner-only operation when the token is missing or invalid. */
+export interface UnauthorizedError extends Error {
+	name: 'UnauthorizedError';
+}
