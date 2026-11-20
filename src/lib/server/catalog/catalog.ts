@@ -43,8 +43,9 @@ import type {
 	ProductLink,
 	RecordSortKey,
 	RecordView,
-	SortKey,
+	SortDirection,
 	Store,
+	WishlistSortKey,
 	WishlistItemView
 } from './types';
 
@@ -107,19 +108,34 @@ function byAlbum(a: AlbumSummary, b: AlbumSummary) {
 	return compare(a.artist, b.artist) || compare(a.title, b.title) || a.id - b.id;
 }
 
-function byYear(a: AlbumSummary, b: AlbumSummary) {
-	if (a.releaseYear === b.releaseYear) return byAlbum(a, b);
-	if (a.releaseYear === null) return 1;
-	if (b.releaseYear === null) return -1;
-	return b.releaseYear - a.releaseYear;
-}
+/** Direction used when the caller gives none. */
+const DEFAULT_DIRECTION: Record<RecordSortKey | WishlistSortKey, SortDirection> = {
+	artist: 'asc',
+	album: 'asc',
+	year: 'desc',
+	acquired: 'desc',
+	desire: 'desc'
+};
 
-function albumComparator(sort: SortKey | undefined) {
-	if (sort === 'album') {
-		return (a: AlbumSummary, b: AlbumSummary) =>
-			compare(a.title, b.title) || compare(a.artist, b.artist) || a.id - b.id;
-	}
-	return sort === 'year' ? byYear : byAlbum;
+/** Sorts by one key in the given direction. Ties and unknown values keep the same order in both directions. */
+function sortBy<T extends { id: number; album: AlbumSummary }>(
+	items: T[],
+	sort: RecordSortKey | WishlistSortKey,
+	direction: SortDirection | undefined,
+	key: (item: T) => string | number | null
+) {
+	const sign = (direction ?? DEFAULT_DIRECTION[sort]) === 'desc' ? -1 : 1;
+	return items.sort((a, b) => {
+		const x = key(a);
+		const y = key(b);
+		if (x !== y) {
+			if (x === null) return 1;
+			if (y === null) return -1;
+			const order = typeof x === 'string' ? compare(x, y as string) : x - (y as number);
+			if (order) return sign * order;
+		}
+		return byAlbum(a.album, b.album) || a.id - b.id;
+	});
 }
 
 export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Catalog {
@@ -519,14 +535,18 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 		async listRecords(input = {}) {
 			const all = await loadRecords();
 			const sort: RecordSortKey = input.sort ?? 'acquired';
-			const byDate = (a: RecordView, b: RecordView) =>
-				b.acquisition.date.localeCompare(a.acquisition.date) ||
-				byAlbum(a.album, b.album) ||
-				a.id - b.id;
-			const album = albumComparator(sort === 'acquired' ? undefined : sort);
-			const shown = all
-				.filter((r) => matchesFilters(r.album.artist, r.album.title, input))
-				.sort(sort === 'acquired' ? byDate : (a, b) => album(a.album, b.album) || a.id - b.id);
+			const keys = {
+				artist: (r: RecordView) => r.album.artist,
+				album: (r: RecordView) => r.album.title,
+				year: (r: RecordView) => r.album.releaseYear,
+				acquired: (r: RecordView) => r.acquisition.date
+			};
+			const shown = sortBy(
+				all.filter((r) => matchesFilters(r.album.artist, r.album.title, input)),
+				sort,
+				input.direction,
+				keys[sort]
+			);
 			let totalSpentCents = 0;
 			for (const r of all)
 				if (r.acquisition.kind === 'purchase') totalSpentCents += r.acquisition.priceCents;
@@ -536,17 +556,23 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 		async listWishlist(input = {}) {
 			const all = await loadWishlist();
 			const desires = input.desires?.length ? input.desires : null;
-			const sort = input.sort;
-			const album = albumComparator(sort === 'desire' ? undefined : sort);
-			const byDesire = (a: WishlistItemView, b: WishlistItemView) =>
-				sort === 'desire' ? b.desire - a.desire : 0;
-			const items = all
-				.filter(
+			const sort: WishlistSortKey = input.sort ?? 'artist';
+			const keys = {
+				artist: (i: WishlistItemView) => i.album.artist,
+				album: (i: WishlistItemView) => i.album.title,
+				year: (i: WishlistItemView) => i.album.releaseYear,
+				desire: (i: WishlistItemView) => i.desire
+			};
+			const items = sortBy(
+				all.filter(
 					(i) =>
 						matchesFilters(i.album.artist, i.album.title, input) &&
 						(!desires || desires.includes(i.desire))
-				)
-				.sort((a, b) => byDesire(a, b) || album(a.album, b.album) || a.id - b.id);
+				),
+				sort,
+				input.direction,
+				keys[sort]
+			);
 			return { items, count: all.length };
 		},
 

@@ -9,6 +9,7 @@ const SORTS: WishlistSortKey[] = ['desire', 'artist', 'album', 'year'];
 /** Filtered and sorted Wishlist Items: the Catalog applies the rules, this only reads the query. */
 export const GET: RequestHandler = async ({ url, platform }) => {
 	const sort = url.searchParams.get('sort') as WishlistSortKey;
+	const direction = url.searchParams.get('direction');
 	const desires = (url.searchParams.get('desires') ?? '')
 		.split(',')
 		.map(Number)
@@ -17,7 +18,8 @@ export const GET: RequestHandler = async ({ url, platform }) => {
 		search: url.searchParams.get('search') ?? undefined,
 		artist: url.searchParams.get('artist') ?? undefined,
 		desires,
-		sort: SORTS.includes(sort) ? sort : undefined
+		sort: SORTS.includes(sort) ? sort : undefined,
+		direction: direction === 'asc' || direction === 'desc' ? direction : undefined
 	});
 	return json({ items: withCoverUrls(items) });
 };

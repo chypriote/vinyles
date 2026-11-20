@@ -97,6 +97,7 @@ export interface CoverImage {
 // --- Lists -------------------------------------------------------------------
 
 export type SortKey = 'artist' | 'album' | 'year';
+export type SortDirection = 'asc' | 'desc';
 export type RecordSortKey = SortKey | 'acquired';
 /** `desire`: most wanted first, then Artist and Album. */
 export type WishlistSortKey = SortKey | 'desire';
@@ -110,12 +111,15 @@ export interface ListFilters {
 
 export interface ListRecordsInput extends ListFilters {
 	sort?: RecordSortKey;
+	/** Missing = the usual direction of the key: latest or most first for year, acquired and desire. */
+	direction?: SortDirection;
 }
 
 export interface ListWishlistInput extends ListFilters {
 	/** Several at once. Empty or missing = all. */
 	desires?: Desire[];
 	sort?: WishlistSortKey;
+	direction?: SortDirection;
 }
 
 export interface CollectionTotals {

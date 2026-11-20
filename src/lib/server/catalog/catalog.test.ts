@@ -440,6 +440,27 @@ describe('Collection list', () => {
 			]);
 		});
 
+		it('reverses each sort with the direction, unknown years staying last', async () => {
+			expect(await titles({ sort: 'acquired', direction: 'asc' })).toEqual([
+				'No Year',
+				'Talkie Walkie',
+				'Moon Safari',
+				'Discovery'
+			]);
+			expect(await titles({ sort: 'artist', direction: 'desc' })).toEqual([
+				'No Year',
+				'Discovery',
+				'Moon Safari',
+				'Talkie Walkie'
+			]);
+			expect(await titles({ sort: 'year', direction: 'asc' })).toEqual([
+				'Moon Safari',
+				'Discovery',
+				'Talkie Walkie',
+				'No Year'
+			]);
+		});
+
 		it('sorts by acquisition date, latest first', async () => {
 			expect(await titles({ sort: 'acquired' })).toEqual([
 				'Discovery',
@@ -641,6 +662,19 @@ describe('Wishlist', () => {
 			expect(await titles({ sort: 'desire' })).toEqual([
 				'Moon Safari',
 				'Talkie Walkie',
+				'Discovery'
+			]);
+		});
+
+		it('reverses the sort with the direction', async () => {
+			expect(await titles({ sort: 'desire', direction: 'asc' })).toEqual([
+				'Discovery',
+				'Talkie Walkie',
+				'Moon Safari'
+			]);
+			expect(await titles({ sort: 'album', direction: 'desc' })).toEqual([
+				'Talkie Walkie',
+				'Moon Safari',
 				'Discovery'
 			]);
 		});

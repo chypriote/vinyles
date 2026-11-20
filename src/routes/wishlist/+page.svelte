@@ -37,10 +37,23 @@
 		{ value: 'year', label: 'Sort: release year' }
 	];
 
+	const directions = [
+		{ value: 'asc', label: 'Ascending' },
+		{ value: 'desc', label: 'Descending' }
+	];
+	// The usual direction of each sort: the latest or most first for year, acquired and desire.
+	const usualDirection: Record<string, string> = {
+		desire: 'desc',
+		artist: 'asc',
+		album: 'asc',
+		year: 'desc'
+	};
+
 	// Filters are page state, not in the URL. The Catalog applies them, through /api/wishlist.
 	let search = $state('');
 	let artist = $state('');
 	let sort = $state('desire');
+	let direction = $derived(usualDirection[sort]);
 	let desires = $state<(1 | 2 | 3)[]>([]);
 	let filtered = $state<Row[] | null>(null);
 
@@ -58,11 +71,11 @@
 
 	$effect(() => {
 		void data.items; // refetch the filtered list after a change
-		if (!isFiltering && sort === 'desire') {
+		if (!isFiltering && sort === 'desire' && direction === 'desc') {
 			filtered = null;
 			return;
 		}
-		const query = new SvelteURLSearchParams({ sort, desires: desires.join(',') });
+		const query = new SvelteURLSearchParams({ sort, direction, desires: desires.join(',') });
 		if (search.trim()) query.set('search', search.trim());
 		if (artist) query.set('artist', artist);
 		const controller = new AbortController();
@@ -191,6 +204,7 @@
 		/>
 		<Select bind:value={artist} label="Artist" options={artistOptions} />
 		<Select bind:value={sort} label="Sort by" options={sorts} />
+		<Select bind:value={direction} label="Sort order" options={directions} />
 		<DesireFilter bind:value={desires} />
 	{/snippet}
 </StickyBar>
