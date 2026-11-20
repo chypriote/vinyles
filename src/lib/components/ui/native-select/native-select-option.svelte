@@ -1,7 +1,20 @@
 <script lang="ts">
-	import type { HTMLOptionAttributes } from 'svelte/elements';
+	import { cn, type WithElementRef } from "#lib/utils.js";
+	import type { HTMLOptionAttributes } from "svelte/elements";
 
-	let { children, ...restProps }: HTMLOptionAttributes = $props();
+	let {
+		ref = $bindable(null),
+		class: className,
+		children,
+		...restProps
+	}: WithElementRef<HTMLOptionAttributes> = $props();
 </script>
 
-<option data-slot="native-select-option" {...restProps}>{@render children?.()}</option>
+<option
+	bind:this={ref}
+	data-slot="native-select-option"
+	class={cn("bg-[Canvas] text-[CanvasText]", className)}
+	{...restProps}
+>
+	{@render children?.()}
+</option>
