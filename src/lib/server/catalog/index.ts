@@ -1,3 +1,4 @@
+import { env } from 'cloudflare:workers';
 import { buildCatalog, type CatalogEnv, type CatalogOptions } from './catalog';
 import type { Catalog } from './types';
 
@@ -9,11 +10,10 @@ export function createCatalog(env: CatalogEnv, options?: CatalogOptions): Catalo
 	return buildCatalog(env, options);
 }
 
-/** Builds the Catalog for a route from `platform.env`. */
+/** Builds the Catalog for a route from the Worker bindings (adapter-cloudflare 9 no longer sets `platform`). */
 export function catalogFromPlatform(
-	platform: App.Platform | undefined,
+	_platform?: unknown,
 	options?: CatalogOptions
 ): Catalog {
-	if (!platform) throw new Error('No platform: the Catalog needs the Cloudflare bindings');
-	return createCatalog(platform.env, options);
+	return createCatalog(env as unknown as CatalogEnv, options);
 }
