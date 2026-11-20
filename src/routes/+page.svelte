@@ -23,10 +23,10 @@
 	let { data }: PageProps = $props();
 
 	const sorts = [
-		{ value: 'artist', label: 'Artist' },
-		{ value: 'album', label: 'Album' },
-		{ value: 'year', label: 'Release year' },
-		{ value: 'acquired', label: 'Acquired' }
+		{ value: 'artist', label: 'Sort: artist' },
+		{ value: 'album', label: 'Sort: album' },
+		{ value: 'year', label: 'Sort: release year' },
+		{ value: 'acquired', label: 'Sort: acquired' }
 	];
 
 	// Filters are page state, not in the URL. The Catalog applies them, through /api/records.
@@ -35,11 +35,14 @@
 	let sort = $state('acquired');
 	let filtered = $state<Row[] | null>(null);
 
+	const artistNames = $derived(
+		[...new Set(data.records.map((r) => r.album.artist))].sort((a, b) =>
+			a.localeCompare(b, undefined, { sensitivity: 'base' })
+		)
+	);
 	const artistOptions = $derived([
-		{ value: '', label: 'All artists' },
-		...[...new Set(data.records.map((r) => r.album.artist))]
-			.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
-			.map((name) => ({ value: name, label: name }))
+		{ value: '', label: `All artists (${artistNames.length})` },
+		...artistNames.map((name) => ({ value: name, label: name }))
 	]);
 	const isFiltering = $derived(search.trim() !== '' || artist !== '');
 	const records = $derived(filtered ?? data.records);
@@ -98,7 +101,7 @@
 
 <svelte:head><title>Collection</title></svelte:head>
 
-<StickyBar title="Collection" current="collection">
+<StickyBar current="collection">
 	{#snippet chips()}
 		<Chip tone="highlight" label="records" value={String(data.totals.recordCount)} />
 		<Chip tone="success" label="spent" value={formatCents(data.totals.totalSpentCents)} />
@@ -114,7 +117,11 @@
 		{/if}
 	{/snippet}
 	{#snippet controls()}
-		<SearchField bind:value={search} label="Search artist or album" placeholder="Search" />
+		<SearchField
+			bind:value={search}
+			label="Search artist or album"
+			placeholder="Search artist or album"
+		/>
 		<Select bind:value={artist} label="Artist" options={artistOptions} />
 		<Select bind:value={sort} label="Sort by" options={sorts} />
 	{/snippet}

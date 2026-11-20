@@ -26,9 +26,9 @@
 	let { data }: PageProps = $props();
 
 	const sorts = [
-		{ value: 'artist', label: 'Artist' },
-		{ value: 'album', label: 'Album' },
-		{ value: 'year', label: 'Release year' }
+		{ value: 'artist', label: 'Sort: artist' },
+		{ value: 'album', label: 'Sort: album' },
+		{ value: 'year', label: 'Sort: release year' }
 	];
 
 	// Filters are page state, not in the URL. The Catalog applies them, through /api/wishlist.
@@ -38,11 +38,14 @@
 	let desires = $state<(1 | 2 | 3)[]>([]);
 	let filtered = $state<Row[] | null>(null);
 
+	const artistNames = $derived(
+		[...new Set(data.items.map((i) => i.album.artist))].sort((a, b) =>
+			a.localeCompare(b, undefined, { sensitivity: 'base' })
+		)
+	);
 	const artistOptions = $derived([
-		{ value: '', label: 'All artists' },
-		...[...new Set(data.items.map((i) => i.album.artist))]
-			.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
-			.map((name) => ({ value: name, label: name }))
+		{ value: '', label: `All artists (${artistNames.length})` },
+		...artistNames.map((name) => ({ value: name, label: name }))
 	]);
 	const isFiltering = $derived(search.trim() !== '' || artist !== '' || desires.length > 0);
 	const items = $derived(filtered ?? data.items);
@@ -109,7 +112,7 @@
 
 <svelte:head><title>Wishlist</title></svelte:head>
 
-<StickyBar title="Wishlist" current="wishlist">
+<StickyBar current="wishlist">
 	{#snippet chips()}
 		<Chip tone="info" label="items" value={String(data.count)} />
 	{/snippet}
@@ -124,7 +127,11 @@
 		{/if}
 	{/snippet}
 	{#snippet controls()}
-		<SearchField bind:value={search} label="Search artist or album" placeholder="Search" />
+		<SearchField
+			bind:value={search}
+			label="Search artist or album"
+			placeholder="Search artist or album"
+		/>
 		<Select bind:value={artist} label="Artist" options={artistOptions} />
 		<Select bind:value={sort} label="Sort by" options={sorts} />
 		<DesireFilter bind:value={desires} />
