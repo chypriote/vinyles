@@ -9,7 +9,8 @@
 	import Cover from '#lib/components/Cover.svelte';
 	import CoverGrid from '#lib/components/CoverGrid.svelte';
 	import EmptyState from '#lib/components/EmptyState.svelte';
-	import OwnerAction from '#lib/components/OwnerAction.svelte';
+	import AddAction from '#lib/components/AddAction.svelte';
+	import LoginAction from '#lib/components/LoginAction.svelte';
 	import Popup from '#lib/components/Popup.svelte';
 	import RecordForm from '#lib/components/RecordForm.svelte';
 	import SearchField from '#lib/components/SearchField.svelte';
@@ -100,13 +101,15 @@
 		<Chip tone="highlight" label="records" value={String(data.totals.recordCount)} />
 		<Chip tone="success" label="spent" value={formatCents(data.totals.totalSpentCents)} />
 	{/snippet}
+	{#snippet login()}
+		{#if !data.isOwner}
+			<LoginAction />
+		{/if}
+	{/snippet}
 	{#snippet action()}
-		<OwnerAction
-			isOwner={data.isOwner}
-			current="collection"
-			artists={data.artists}
-			stores={data.stores}
-		/>
+		{#if data.isOwner}
+			<AddAction current="collection" artists={data.artists} stores={data.stores} />
+		{/if}
 	{/snippet}
 	{#snippet controls()}
 		<SearchField bind:value={search} label="Search artist or album" placeholder="Search" />
