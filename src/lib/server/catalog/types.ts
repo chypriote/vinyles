@@ -270,6 +270,8 @@ export interface Catalog {
 	pickCover(token: string, input: PickCoverInput): Promise<void>;
 	/** Uses an uploaded JPEG, PNG or WebP image (under 2 MB) as the Cover of the Album. */
 	uploadCover(token: string, input: UploadCoverInput): Promise<void>;
+	/** Fetches an image from an http(s) address (same checks as an upload) and uses it as the Cover. */
+	uploadCoverFromUrl(token: string, input: { albumId: number; url: string }): Promise<void>;
 
 	// Records (Owner)
 	addRecord(token: string, input: AddRecordInput): Promise<RecordView>;

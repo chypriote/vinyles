@@ -6,6 +6,7 @@
 	import { Button as IconButton } from './ui/button/index.js';
 	import { Input } from './ui/input/index.js';
 	import UploadIcon from '@lucide/svelte/icons/upload';
+	import LinkIcon from '@lucide/svelte/icons/link';
 
 	let {
 		albumId,
@@ -81,6 +82,24 @@
 	/** What the Owner is asked to confirm: a candidate or an uploaded image. */
 	let preview = $state<{ url: string; label: string; source: string } | null>(null);
 	let upload = $state<Blob | null>(null);
+	let remoteUrl = $state<string | null>(null);
+	let urlOpen = $state(false);
+	let urlText = $state('');
+
+	function chooseUrl(event: SubmitEvent) {
+		event.preventDefault();
+		const address = urlText.trim();
+		if (!/^https?:\/\//i.test(address)) {
+			pickError = 'Use an http or https address';
+			return;
+		}
+		pickError = null;
+		picked = null;
+		upload = null;
+		remoteUrl = address;
+		preview = { url: address, label: address, source: 'Web address' };
+		confirmOpen = true;
+	}
 
 	async function chooseFile() {
 		const file = fileInput?.files?.[0];
@@ -90,6 +109,7 @@
 		try {
 			upload = await shrink(file);
 			picked = null;
+			remoteUrl = null;
 			preview = { url: URL.createObjectURL(upload), label: file.name, source: 'Upload' };
 			confirmOpen = true;
 		} catch {
@@ -107,6 +127,7 @@
 	function choose(candidate: CoverCandidate) {
 		picked = candidate;
 		upload = null;
+		remoteUrl = null;
 		preview = {
 			url: largeUrl(candidate),
 			label: candidate.title
@@ -124,20 +145,26 @@
 	});
 
 	async function useCover() {
-		if (!picked && !upload) return;
+		if (!picked && !upload && !remoteUrl) return;
 		busy = true;
 		try {
-			const response = upload
-				? await fetch(`/api/albums/${albumId}/cover-upload`, {
-						method: 'POST',
-						headers: { 'content-type': upload.type },
-						body: upload
-					})
-				: await fetch(`/api/albums/${albumId}/cover`, {
+			const response = remoteUrl
+				? await fetch(`/api/albums/${albumId}/cover-url`, {
 						method: 'POST',
 						headers: { 'content-type': 'application/json' },
-						body: JSON.stringify({ candidateId: picked!.id, source: picked!.source })
-					});
+						body: JSON.stringify({ url: remoteUrl })
+					})
+				: upload
+					? await fetch(`/api/albums/${albumId}/cover-upload`, {
+							method: 'POST',
+							headers: { 'content-type': upload.type },
+							body: upload
+						})
+					: await fetch(`/api/albums/${albumId}/cover`, {
+							method: 'POST',
+							headers: { 'content-type': 'application/json' },
+							body: JSON.stringify({ candidateId: picked!.id, source: picked!.source })
+						});
 			if (response.ok) {
 				await invalidateAll();
 				onDone();
@@ -172,9 +199,31 @@
 		>
 			<UploadIcon class="size-5" />
 		</IconButton>
+		<IconButton
+			variant="neutral"
+			size="icon"
+			aria-label="Use an image address"
+			aria-expanded={urlOpen}
+			disabled={busy}
+			onclick={() => (urlOpen = !urlOpen)}
+		>
+			<LinkIcon class="size-5" />
+		</IconButton>
 		<Input type="search" bind:value={text} aria-label="Search covers" class="flex-1" />
 		<Button type="submit" disabled={!text.trim()} {loading}>Search</Button>
 	</form>
+	{#if urlOpen}
+		<form class="flex gap-2" onsubmit={chooseUrl}>
+			<Input
+				type="url"
+				bind:value={urlText}
+				aria-label="Image address"
+				placeholder="https://…"
+				class="flex-1"
+			/>
+			<Button type="submit" disabled={!urlText.trim()}>Preview</Button>
+		</form>
+	{/if}
 	{#if pickError}
 		<p role="alert" class="text-sm text-destructive">{pickError}</p>
 	{/if}
