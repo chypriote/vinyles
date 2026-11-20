@@ -232,8 +232,8 @@
 					artists={data.artists}
 					stores={data.stores}
 					onDone={() => (editOpen = false)}
+					onChangeCover={() => (changingCover = true)}
 				/>
-				<Button onclick={() => (changingCover = true)}>Change cover</Button>
 			{/if}
 		{/snippet}
 	</Popup>
