@@ -214,6 +214,7 @@
 			{#if changingCover}
 				<CoverPicker
 					albumId={selected.album.id}
+					query={`${selected.album.artist} ${selected.album.title}`}
 					onBack={() => (changingCover = false)}
 					onDone={() => {
 						changingCover = false;

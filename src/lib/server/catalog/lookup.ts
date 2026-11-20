@@ -114,24 +114,25 @@ export async function findReleaseCandidates(
 		}));
 }
 
-/** Top 5 release-group search hits for an Album without match. */
-export async function searchCandidates(
-	artist: string,
-	title: string,
+type ReleaseGroupHits = {
+	'release-groups'?: {
+		id: string;
+		title: string;
+		'artist-credit'?: { name: string }[];
+		'first-release-date'?: string;
+	}[];
+};
+
+async function searchReleaseGroups(
+	query: string,
+	limit: number,
 	intervalMs: number
 ): Promise<FoundCandidate[]> {
 	const url = new URL('https://musicbrainz.org/ws/2/release-group/');
-	url.searchParams.set('query', `artist:${quote(artist)} AND releasegroup:${quote(title)}`);
-	url.searchParams.set('limit', String(MAX_SEARCH_CANDIDATES));
-	const data = await musicBrainz<{
-		'release-groups'?: {
-			id: string;
-			title: string;
-			'artist-credit'?: { name: string }[];
-			'first-release-date'?: string;
-		}[];
-	}>(url, intervalMs);
-	return (data['release-groups'] ?? []).slice(0, MAX_SEARCH_CANDIDATES).map((hit) => {
+	url.searchParams.set('query', query);
+	url.searchParams.set('limit', String(limit));
+	const data = await musicBrainz<ReleaseGroupHits>(url, intervalMs);
+	return (data['release-groups'] ?? []).slice(0, limit).map((hit) => {
 		const year = Number.parseInt(hit['first-release-date']?.slice(0, 4) ?? '', 10);
 		return {
 			id: hit.id,
@@ -142,6 +143,34 @@ export async function searchCandidates(
 			year: Number.isInteger(year) ? year : null
 		};
 	});
+}
+
+/** Top 5 release-group search hits for an Album without match. */
+export function searchCandidates(
+	artist: string,
+	title: string,
+	intervalMs: number
+): Promise<FoundCandidate[]> {
+	return searchReleaseGroups(
+		`artist:${quote(artist)} AND releasegroup:${quote(title)} AND primarytype:album`,
+		MAX_SEARCH_CANDIDATES,
+		intervalMs
+	);
+}
+
+/** Release-group search hits for text the Owner typed, at most 12. Empty text finds nothing. */
+export async function searchTypedCandidates(
+	text: string,
+	intervalMs: number
+): Promise<FoundCandidate[]> {
+	// Lucene special characters would break or change the query.
+	const words = text.replace(/[^\p{L}\p{N}\s]/gu, ' ').trim();
+	if (!words) return [];
+	return searchReleaseGroups(
+		`(releasegroup:(${words}) OR artist:(${words})) AND primarytype:album`,
+		MAX_RELEASE_CANDIDATES,
+		intervalMs
+	);
 }
 
 /** The image of a candidate. Null when it has none. */

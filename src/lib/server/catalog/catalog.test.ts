@@ -1116,6 +1116,19 @@ describe('Changing the Cover of an Album', () => {
 			expect(await (await env.COVERS.get(moon.coverKey!))?.text()).toBe('chosen');
 		});
 
+		it('can be searched with typed text: release-group hits, at most 12', async () => {
+			fakeAlbums.push(
+				...Array.from({ length: 14 }, (_, i) =>
+					group({ mbid: `mb-${i}`, year: 1990 + i, cover: `c${i}` })
+				)
+			);
+			const found = await catalog.searchCoverCandidates(token, 'Air: Moon Safari');
+			expect(found).toHaveLength(12);
+			expect(found[3]).toMatchObject({ id: 'mb-3', source: 'release-group', year: 1993 });
+			expect(await catalog.searchCoverCandidates(token, ' :: ')).toEqual([]);
+			await expect(catalog.searchCoverCandidates('bad-token', 'Air')).rejects.toThrow();
+		});
+
 		it('make at most one MusicBrainz request per interval', async () => {
 			const slow = createCatalog(env, { lookupIntervalMs: 60 });
 			fakeAlbums.push(group({ releases: [{ id: 'r', cover: 'x' }] }));
