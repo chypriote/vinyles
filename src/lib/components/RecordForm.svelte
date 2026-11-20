@@ -54,6 +54,7 @@
 	let acquisition = $state(startingAcquisition());
 	let error = $state<string | null>(null);
 	let busy = $state(false);
+	let removing = $state(false);
 	let confirmOpen = $state(false);
 
 	const listId = $props.id();
@@ -78,8 +79,10 @@
 	async function remove() {
 		if (!record) return;
 		busy = true;
+		removing = true;
 		const outcome = await postAction('?/deleteRecord', { id: record.id });
 		busy = false;
+		removing = false;
 		if (outcome.ok) onDone();
 		else error = outcome.error;
 	}
@@ -97,10 +100,14 @@
 	<AcquisitionFields bind:acquisition {stores} onAddStore={addStore} />
 	{#if error}<p class="text-sm font-medium text-foreground" role="alert">! {error}</p>{/if}
 	<div class="flex flex-wrap gap-2">
-		<Button intent="success" type="submit" disabled={busy}>Save</Button>
+		<Button intent="success" type="submit" disabled={removing} loading={busy && !removing}>
+			Save
+		</Button>
 		<Button onclick={onDone}>Cancel</Button>
 		{#if record}
-			<Button disabled={busy} onclick={() => (confirmOpen = true)}>Delete record</Button>
+			<Button disabled={busy} loading={removing} onclick={() => (confirmOpen = true)}>
+				Delete record
+			</Button>
 		{/if}
 	</div>
 </form>

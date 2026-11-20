@@ -80,6 +80,7 @@
 						variant="neutral"
 						class="h-auto w-full flex-col items-stretch gap-1 p-1"
 						disabled={busy}
+						loading={busy && picked?.id === candidate.id}
 						onclick={() => choose(candidate)}
 					>
 						<img

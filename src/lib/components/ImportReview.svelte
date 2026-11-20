@@ -71,7 +71,7 @@
 	<section class="flex flex-col gap-3">
 		<p class="text-sm font-medium" aria-live="polite">Imported {shown.done} of {shown.total}</p>
 		<div>
-			<Button disabled={running || finished || shown.total === 0} onclick={runLookup}>
+			<Button loading={running} disabled={finished || shown.total === 0} onclick={runLookup}>
 				Run lookup
 			</Button>
 		</div>
@@ -106,7 +106,7 @@
 
 	{#if finished}
 		<div>
-			<Button intent="success" disabled={saving} onclick={saveYears}>Save years</Button>
+			<Button intent="success" loading={saving} onclick={saveYears}>Save years</Button>
 		</div>
 	{/if}
 </main>

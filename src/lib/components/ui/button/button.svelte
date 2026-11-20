@@ -4,7 +4,7 @@
 	import type { HTMLAnchorAttributes, HTMLButtonAttributes } from "svelte/elements";
 
 	export const buttonVariants = tv({
-		base: "relative inline-flex min-h-11 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-control px-5 text-sm font-extrabold whitespace-nowrap shadow-(--shadow-raised) outline-ring before:pointer-events-none before:absolute before:inset-0 before:rounded-[inherit] before:bg-current before:opacity-0 hover:before:opacity-[.08] focus-visible:outline-3 focus-visible:outline-solid active:translate-y-[3px] active:shadow-none disabled:pointer-events-none disabled:opacity-50 disabled:shadow-none motion-safe:transition-[transform,box-shadow] motion-safe:duration-80 motion-safe:ease-out [&_svg]:pointer-events-none [&_svg]:shrink-0",
+		base: "relative inline-flex min-h-11 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-control px-5 text-sm font-extrabold whitespace-nowrap shadow-(--shadow-raised) outline-ring before:pointer-events-none before:absolute before:inset-0 before:rounded-[inherit] before:bg-current before:opacity-0 hover:before:opacity-[.08] focus-visible:outline-3 focus-visible:outline-solid active:translate-y-[3px] active:shadow-none disabled:pointer-events-none disabled:opacity-50 disabled:shadow-none aria-busy:disabled:opacity-100 motion-safe:transition-[transform,box-shadow] motion-safe:duration-80 motion-safe:ease-out [&_svg]:pointer-events-none [&_svg]:shrink-0",
 		variants: {
 			variant: {
 				default: "bg-primary text-primary-foreground",
@@ -29,6 +29,7 @@
 		WithElementRef<HTMLAnchorAttributes> & {
 			variant?: ButtonVariant;
 			size?: ButtonSize;
+			loading?: boolean;
 		};
 </script>
 
@@ -41,23 +42,45 @@
 		href = undefined,
 		type = "button",
 		disabled,
+		loading = false,
 		children,
 		...restProps
 	}: ButtonProps = $props();
+
+	const off = $derived(disabled || loading);
 </script>
+
+{#snippet content()}
+	<!-- The label stays in the layout (hidden) so the button keeps its size. -->
+	<span class={loading ? "invisible contents" : "contents"}>{@render children?.()}</span>
+	{#if loading}
+		<svg
+			aria-hidden="true"
+			viewBox="0 0 24 24"
+			class="absolute size-4 motion-safe:animate-spin"
+			fill="none"
+			stroke="currentColor"
+			stroke-width="3"
+			stroke-linecap="round"
+		>
+			<path d="M12 3a9 9 0 1 0 9 9" />
+		</svg>
+	{/if}
+{/snippet}
 
 {#if href}
 	<a
 		bind:this={ref}
 		data-slot="button"
 		class={cn(buttonVariants({ variant, size }), className)}
-		href={disabled ? undefined : href}
-		aria-disabled={disabled}
-		role={disabled ? "link" : undefined}
-		tabindex={disabled ? -1 : undefined}
+		href={off ? undefined : href}
+		aria-disabled={off}
+		aria-busy={loading || undefined}
+		role={off ? "link" : undefined}
+		tabindex={off ? -1 : undefined}
 		{...restProps}
 	>
-		{@render children?.()}
+		{@render content()}
 	</a>
 {:else}
 	<button
@@ -65,9 +88,10 @@
 		data-slot="button"
 		class={cn(buttonVariants({ variant, size }), className)}
 		{type}
-		{disabled}
+		disabled={off}
+		aria-busy={loading || undefined}
 		{...restProps}
 	>
-		{@render children?.()}
+		{@render content()}
 	</button>
 {/if}

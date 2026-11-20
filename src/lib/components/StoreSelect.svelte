@@ -63,7 +63,7 @@
 		<div class="flex flex-col gap-2">
 			<Field label="New store" bind:value={name} {error} />
 			<div>
-				<Button intent="success" disabled={busy} onclick={add}>Add</Button>
+				<Button intent="success" loading={busy} onclick={add}>Add</Button>
 			</div>
 		</div>
 	{/if}

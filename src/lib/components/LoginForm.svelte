@@ -32,5 +32,5 @@
 	}}
 >
 	<Field label="Password" type="password" required bind:value={password} {error} />
-	<Button intent="success" type="submit" disabled={busy}>Log in</Button>
+	<Button intent="success" type="submit" loading={busy}>Log in</Button>
 </form>
