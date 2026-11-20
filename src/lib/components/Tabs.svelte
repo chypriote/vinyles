@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import { cn } from '#lib/utils';
 	import { buttonVariants } from './ui/button/index.js';
 
@@ -13,12 +14,14 @@
 <nav aria-label="Lists" class="flex gap-2">
 	{#each links as link (link.key)}
 		<a
-			href={link.href}
+			href={resolve(link.href)}
 			aria-current={current === link.key ? 'page' : undefined}
 			class={cn(
 				buttonVariants({ variant: current === link.key ? 'default' : 'neutral' }),
 				'font-bold'
-			)}>{link.label}</a
+			)}
 		>
+			{link.label}
+		</a>
 	{/each}
 </nav>

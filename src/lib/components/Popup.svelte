@@ -29,7 +29,7 @@
 	let pos = $state<{ left: number; top: number } | null>(null);
 	let imgFailed = $state(false);
 	$effect(() => {
-		coverUrl;
+		void coverUrl;
 		imgFailed = false;
 	});
 
@@ -47,7 +47,10 @@
 			const h = el.offsetHeight;
 			const vw = window.innerWidth;
 			const vh = window.innerHeight;
-			const left = Math.min(Math.max(r.left + r.width / 2 - w / 2, GUTTER), Math.max(vw - w - GUTTER, GUTTER));
+			const left = Math.min(
+				Math.max(r.left + r.width / 2 - w / 2, GUTTER),
+				Math.max(vw - w - GUTTER, GUTTER)
+			);
 			const top = Math.min(Math.max(r.top, GUTTER), Math.max(vh - h - GUTTER, GUTTER));
 			pos = { left, top };
 		});
@@ -85,8 +88,10 @@
 						aria-hidden="true"
 						class="flex size-(--popup-cover-size) shrink-0 items-center justify-center rounded-(--cover-radius) text-4xl font-extrabold text-primary-foreground {tileClass(
 							artist
-						)}">{initials(artist)}</span
+						)}"
 					>
+						{initials(artist)}
+					</span>
 				{/if}
 				<div class="flex min-w-0 flex-col gap-1">
 					<Dialog.Title>{album}</Dialog.Title>

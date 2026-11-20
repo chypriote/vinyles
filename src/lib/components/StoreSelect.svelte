@@ -23,7 +23,10 @@
 	let error = $state<string | null>(null);
 	let busy = $state(false);
 
-	const all = $derived([...stores, ...added.filter((a) => !stores.some((s) => String(s.id) === String(a.id)))]);
+	const all = $derived([
+		...stores,
+		...added.filter((a) => !stores.some((s) => String(s.id) === String(a.id)))
+	]);
 	const options = $derived([
 		{ value: '', label: 'Choose a store' },
 		...all.map((s) => ({ value: String(s.id), label: s.name })),

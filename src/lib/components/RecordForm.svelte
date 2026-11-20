@@ -34,7 +34,13 @@
 		const a = record?.acquisition;
 		if (!a) return emptyAcquisition();
 		return a.kind === 'purchase'
-			? { kind: 'purchase', date: a.date, storeId: String(a.store.id), price: centsToEuros(a.priceCents), giver: '' }
+			? {
+					kind: 'purchase',
+					date: a.date,
+					storeId: String(a.store.id),
+					price: centsToEuros(a.priceCents),
+					giver: ''
+				}
 			: { ...emptyAcquisition(), kind: 'gift', date: a.date, giver: a.giver ?? '' };
 	}
 

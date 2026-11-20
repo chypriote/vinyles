@@ -59,7 +59,14 @@ function installFakeWeb() {
 			const query = url.searchParams.get('query') ?? '';
 			const hit = fakeAlbums.find((a) => query.includes(a.title) && query.includes(a.artist));
 			const groups = hit
-				? [{ id: hit.mbid, score: 100, title: hit.title, 'first-release-date': `${hit.year}-03-01` }]
+				? [
+						{
+							id: hit.mbid,
+							score: 100,
+							title: hit.title,
+							'first-release-date': `${hit.year}-03-01`
+						}
+					]
 				: [];
 			return Response.json({ 'release-groups': groups });
 		}
@@ -125,9 +132,15 @@ describe('Owner login', () => {
 		expect(await catalog.verifyToken('')).toBe(false);
 		expect(await catalog.verifyToken('a.b.c')).toBe(false);
 		expect(await catalog.verifyToken(token.slice(0, -2) + 'xx')).toBe(false);
-		expect(await catalog.verifyToken(await signJwt({ exp: exp + 3600 }, 'other-secret'))).toBe(false);
-		expect(await catalog.verifyToken(await signJwt({ exp: exp - 10 }, 'test-jwt-secret'))).toBe(false);
-		expect(await catalog.verifyToken(await signJwt({ exp: exp + 3600 }, 'test-jwt-secret'))).toBe(true);
+		expect(await catalog.verifyToken(await signJwt({ exp: exp + 3600 }, 'other-secret'))).toBe(
+			false
+		);
+		expect(await catalog.verifyToken(await signJwt({ exp: exp - 10 }, 'test-jwt-secret'))).toBe(
+			false
+		);
+		expect(await catalog.verifyToken(await signJwt({ exp: exp + 3600 }, 'test-jwt-secret'))).toBe(
+			true
+		);
 	});
 
 	it('refuses every write without a valid token', async () => {
@@ -163,11 +176,19 @@ async function storeId(name: string) {
 	return store.id;
 }
 
-async function purchase(cents: number, date = '2024-01-01', store = OFFICIAL): Promise<AcquisitionInput> {
+async function purchase(
+	cents: number,
+	date = '2024-01-01',
+	store = OFFICIAL
+): Promise<AcquisitionInput> {
 	return { kind: 'purchase', date, storeId: await storeId(store), priceCents: cents };
 }
 
-const gift = (date = '2024-01-01', giver?: string): AcquisitionInput => ({ kind: 'gift', date, giver });
+const gift = (date = '2024-01-01', giver?: string): AcquisitionInput => ({
+	kind: 'gift',
+	date,
+	giver
+});
 
 async function addRecord(
 	input: Partial<AddRecordInput> & Pick<AddRecordInput, 'artist' | 'album'>
@@ -217,21 +238,37 @@ describe('Records', () => {
 	it('refuses a Purchase with an unknown Store or a bad price', async () => {
 		const ok = await purchase(1000);
 		if (ok.kind !== 'purchase') throw new Error();
-		await expect(addRecord({ artist: 'A', album: 'B', acquisition: { ...ok, storeId: 9999 } })).rejects.toThrow();
-		await expect(addRecord({ artist: 'A', album: 'B', acquisition: { ...ok, priceCents: -1 } })).rejects.toThrow();
-		await expect(addRecord({ artist: 'A', album: 'B', acquisition: { ...ok, priceCents: 12.5 } })).rejects.toThrow();
+		await expect(
+			addRecord({ artist: 'A', album: 'B', acquisition: { ...ok, storeId: 9999 } })
+		).rejects.toThrow();
+		await expect(
+			addRecord({ artist: 'A', album: 'B', acquisition: { ...ok, priceCents: -1 } })
+		).rejects.toThrow();
+		await expect(
+			addRecord({ artist: 'A', album: 'B', acquisition: { ...ok, priceCents: 12.5 } })
+		).rejects.toThrow();
 		expect((await catalog.listRecords()).records).toEqual([]);
 	});
 
 	it('adds a Gift with no Store or price, and an optional giver', async () => {
-		const withGiver = await addRecord({ artist: 'A', album: 'B', acquisition: gift('2023-12-25', 'Mamie') });
+		const withGiver = await addRecord({
+			artist: 'A',
+			album: 'B',
+			acquisition: gift('2023-12-25', 'Mamie')
+		});
 		expect(withGiver.acquisition).toEqual({ kind: 'gift', date: '2023-12-25', giver: 'Mamie' });
 		const anonymous = await addRecord({ artist: 'A', album: 'C', acquisition: gift() });
 		expect(anonymous.acquisition).toEqual({ kind: 'gift', date: '2024-01-01', giver: null });
 	});
 
 	it('reuses the Album and Artist of an existing Record, with its Cover and year', async () => {
-		fakeAlbums.push({ artist: 'Air', title: 'Moon Safari', year: 1998, mbid: 'mb-1', cover: 'img' });
+		fakeAlbums.push({
+			artist: 'Air',
+			title: 'Moon Safari',
+			year: 1998,
+			mbid: 'mb-1',
+			cover: 'img'
+		});
 		const first = await addRecord({ artist: 'Air', album: 'Moon Safari' });
 		const second = await addRecord({ artist: 'Air', album: 'Moon Safari', variant: 'Clear' });
 		expect(second.album).toEqual(first.album);
@@ -299,10 +336,26 @@ describe('Collection list', () => {
 				{ artist: 'Air', title: 'Moon Safari', year: 1998, mbid: 'm2', cover: null },
 				{ artist: 'Air', title: 'Talkie Walkie', year: 2004, mbid: 'm3', cover: null }
 			);
-			await addRecord({ artist: 'Daft Punk', album: 'Discovery', acquisition: await purchase(1, '2024-03-01') });
-			await addRecord({ artist: 'Air', album: 'Talkie Walkie', acquisition: await purchase(1, '2024-01-01') });
-			await addRecord({ artist: 'Air', album: 'Moon Safari', acquisition: await purchase(1, '2024-02-01') });
-			await addRecord({ artist: 'Mystery', album: 'No Year', acquisition: await purchase(1, '2023-01-01') });
+			await addRecord({
+				artist: 'Daft Punk',
+				album: 'Discovery',
+				acquisition: await purchase(1, '2024-03-01')
+			});
+			await addRecord({
+				artist: 'Air',
+				album: 'Talkie Walkie',
+				acquisition: await purchase(1, '2024-01-01')
+			});
+			await addRecord({
+				artist: 'Air',
+				album: 'Moon Safari',
+				acquisition: await purchase(1, '2024-02-01')
+			});
+			await addRecord({
+				artist: 'Mystery',
+				album: 'No Year',
+				acquisition: await purchase(1, '2023-01-01')
+			});
 		});
 
 		const titles = async (input?: Parameters<Catalog['listRecords']>[0]) =>
@@ -313,15 +366,30 @@ describe('Collection list', () => {
 		});
 
 		it('sorts by Album', async () => {
-			expect(await titles({ sort: 'album' })).toEqual(['Discovery', 'Moon Safari', 'No Year', 'Talkie Walkie']);
+			expect(await titles({ sort: 'album' })).toEqual([
+				'Discovery',
+				'Moon Safari',
+				'No Year',
+				'Talkie Walkie'
+			]);
 		});
 
 		it('sorts by release year with unknown years last', async () => {
-			expect(await titles({ sort: 'year' })).toEqual(['Moon Safari', 'Discovery', 'Talkie Walkie', 'No Year']);
+			expect(await titles({ sort: 'year' })).toEqual([
+				'Moon Safari',
+				'Discovery',
+				'Talkie Walkie',
+				'No Year'
+			]);
 		});
 
 		it('sorts by acquisition date, latest first', async () => {
-			expect(await titles({ sort: 'acquired' })).toEqual(['Discovery', 'Moon Safari', 'Talkie Walkie', 'No Year']);
+			expect(await titles({ sort: 'acquired' })).toEqual([
+				'Discovery',
+				'Moon Safari',
+				'Talkie Walkie',
+				'No Year'
+			]);
 		});
 
 		it('searches Artist and Album at once, ignoring case', async () => {
@@ -341,7 +409,13 @@ describe('Collection list', () => {
 
 describe('Album lookup when an Album is added', () => {
 	it('stores the release year and copies the Cover into R2', async () => {
-		fakeAlbums.push({ artist: 'Air', title: 'Moon Safari', year: 1998, mbid: 'mb-air', cover: 'cover-bytes' });
+		fakeAlbums.push({
+			artist: 'Air',
+			title: 'Moon Safari',
+			year: 1998,
+			mbid: 'mb-air',
+			cover: 'cover-bytes'
+		});
 		const record = await addRecord({ artist: 'Air', album: 'Moon Safari' });
 		expect(record.album.releaseYear).toBe(1998);
 		expect(record.album.coverKey).toBeTruthy();
@@ -351,7 +425,13 @@ describe('Album lookup when an Album is added', () => {
 	});
 
 	it('serves the Cover of an Album, and null when it has none', async () => {
-		fakeAlbums.push({ artist: 'Air', title: 'Moon Safari', year: 1998, mbid: 'mb-air', cover: 'cover-bytes' });
+		fakeAlbums.push({
+			artist: 'Air',
+			title: 'Moon Safari',
+			year: 1998,
+			mbid: 'mb-air',
+			cover: 'cover-bytes'
+		});
 		const withCover = await addRecord({ artist: 'Air', album: 'Moon Safari' });
 		const cover = await catalog.getCover(withCover.album.id);
 		expect(await new Response(cover?.body).text()).toBe('cover-bytes');
@@ -367,7 +447,13 @@ describe('Album lookup when an Album is added', () => {
 	});
 
 	it('keeps the year when the Cover Art Archive has no front image', async () => {
-		fakeAlbums.push({ artist: 'Air', title: 'Moon Safari', year: 1998, mbid: 'mb-air', cover: null });
+		fakeAlbums.push({
+			artist: 'Air',
+			title: 'Moon Safari',
+			year: 1998,
+			mbid: 'mb-air',
+			cover: null
+		});
 		const record = await addRecord({ artist: 'Air', album: 'Moon Safari' });
 		expect(record.album).toMatchObject({ releaseYear: 1998, coverKey: null });
 	});
@@ -439,7 +525,11 @@ describe('Wishlist', () => {
 
 	it('warns "already owned" when the Album is a Record, and adds only with addAnyway', async () => {
 		const record = await addRecord({ artist: 'Air', album: 'Moon Safari' });
-		const warned = await catalog.addWishlistItem(token, { artist: 'Air', album: 'Moon Safari', desire: 2 });
+		const warned = await catalog.addWishlistItem(token, {
+			artist: 'Air',
+			album: 'Moon Safari',
+			desire: 2
+		});
 		expect(warned).toEqual({ status: 'already-owned', records: [record] });
 		expect((await catalog.listWishlist()).items).toEqual([]);
 		const forced = await catalog.addWishlistItem(token, {
@@ -471,7 +561,11 @@ describe('Wishlist', () => {
 
 		it('sorts by Artist then Album by default, and by Album and year', async () => {
 			expect(await titles()).toEqual(['Moon Safari', 'Talkie Walkie', 'Discovery']);
-			expect(await titles({ sort: 'album' })).toEqual(['Discovery', 'Moon Safari', 'Talkie Walkie']);
+			expect(await titles({ sort: 'album' })).toEqual([
+				'Discovery',
+				'Moon Safari',
+				'Talkie Walkie'
+			]);
 			expect(await titles({ sort: 'year' })).toEqual(['Moon Safari', 'Discovery', 'Talkie Walkie']);
 		});
 
@@ -485,7 +579,10 @@ describe('Wishlist', () => {
 			const searched = await catalog.listWishlist({ search: 'TALKIE' });
 			expect(searched.items.map((i) => i.album.title)).toEqual(['Talkie Walkie']);
 			expect(searched.count).toBe(3);
-			expect(await titles({ artist: 'Air', desires: [2, 3] })).toEqual(['Moon Safari', 'Talkie Walkie']);
+			expect(await titles({ artist: 'Air', desires: [2, 3] })).toEqual([
+				'Moon Safari',
+				'Talkie Walkie'
+			]);
 		});
 	});
 
@@ -504,7 +601,11 @@ describe('Wishlist', () => {
 		});
 		expect(record.album).toEqual(added.item.album);
 		expect(record.variant).toBe('Orange');
-		expect(record.acquisition).toMatchObject({ kind: 'purchase', priceCents: 3200, date: '2024-06-01' });
+		expect(record.acquisition).toMatchObject({
+			kind: 'purchase',
+			priceCents: 3200,
+			date: '2024-06-01'
+		});
 		expect((await catalog.listWishlist()).items).toEqual([]);
 		expect((await catalog.listRecords()).records).toEqual([record]);
 	});
@@ -520,7 +621,9 @@ describe('Wishlist', () => {
 	});
 
 	it('Got it refuses an unknown Wishlist Item and keeps the Collection unchanged', async () => {
-		await expect(catalog.gotIt(token, { wishlistItemId: 999, acquisition: gift() })).rejects.toThrow();
+		await expect(
+			catalog.gotIt(token, { wishlistItemId: 999, acquisition: gift() })
+		).rejects.toThrow();
 		expect((await catalog.listRecords()).records).toEqual([]);
 	});
 
@@ -578,7 +681,10 @@ describe('Import', () => {
 
 		const { records, totals } = await catalog.listRecords({ sort: 'album' });
 		expect(totals).toEqual({ recordCount: 2, totalSpentCents: 1672 });
-		expect(records[0]).toMatchObject({ variant: 'Blue', acquisition: { kind: 'purchase', priceCents: 1672, date: '2023-04-01' } });
+		expect(records[0]).toMatchObject({
+			variant: 'Blue',
+			acquisition: { kind: 'purchase', priceCents: 1672, date: '2023-04-01' }
+		});
 		expect(records[0].acquisition).toMatchObject({ store: { name: 'Fnac' } });
 		expect(records[1].acquisition).toEqual({ kind: 'gift', date: '2023-05-01', giver: null });
 		expect((await catalog.listArtists()).map((a) => a.name)).toEqual(['Air', 'Daft Punk']);
@@ -590,7 +696,9 @@ describe('Import', () => {
 		const { items } = await catalog.listWishlist({ sort: 'album' });
 		const discovery = items.find((i) => i.album.title === 'Discovery')!;
 		expect(discovery.desire).toBe(3);
-		expect(discovery.priceQuotes.map((q) => [q.store.name, q.priceCents])).toEqual([['Fnac', 3000]]);
+		expect(discovery.priceQuotes.map((q) => [q.store.name, q.priceCents])).toEqual([
+			['Fnac', 3000]
+		]);
 		expect(items.find((i) => i.album.title === 'Premier Symptome')!.desire).toBe(2);
 		const stores = (await catalog.listStores()).map((s) => s.name);
 		expect(stores).not.toContain('Cultura');
@@ -599,8 +707,12 @@ describe('Import', () => {
 
 	it('shares one Album between a Record and a Wishlist Item of the same title', async () => {
 		await catalog.importRows(token, {
-			collection: [{ artist: 'Air', album: 'Moon Safari', date: '2023-01-01', acquisition: { kind: 'gift' } }],
-			wishlist: [{ artist: 'Air', album: 'Moon Safari', variant: 'Clear', desire: 2, priceQuotes: [] }]
+			collection: [
+				{ artist: 'Air', album: 'Moon Safari', date: '2023-01-01', acquisition: { kind: 'gift' } }
+			],
+			wishlist: [
+				{ artist: 'Air', album: 'Moon Safari', variant: 'Clear', desire: 2, priceQuotes: [] }
+			]
 		});
 		const record = (await catalog.listRecords()).records[0];
 		const item = (await catalog.listWishlist()).items[0];
@@ -642,7 +754,9 @@ describe('Import', () => {
 			const moon = records.find((r) => r.album.title === 'Moon Safari')!.album;
 			expect(moon.releaseYear).toBe(1998);
 			expect(await (await env.COVERS.get(moon.coverKey!))?.text()).toBe('moon-cover');
-			const discovery = (await catalog.listWishlist()).items.find((i) => i.album.title === 'Discovery')!.album;
+			const discovery = (await catalog.listWishlist()).items.find(
+				(i) => i.album.title === 'Discovery'
+			)!.album;
 			expect(discovery).toMatchObject({ releaseYear: 2001, coverKey: null });
 		});
 
@@ -655,7 +769,9 @@ describe('Import', () => {
 				['Air', 'Talkie Walkie']
 			]);
 
-			await catalog.saveYears(token, { years: [{ albumId: unmatched[0].albumId, releaseYear: 1997 }] });
+			await catalog.saveYears(token, {
+				years: [{ albumId: unmatched[0].albumId, releaseYear: 1997 }]
+			});
 			expect(await catalog.listUnmatchedAlbums(token)).toEqual([unmatched[1]]);
 			const albums = [
 				...(await catalog.listRecords()).records.map((r) => r.album),
@@ -665,7 +781,9 @@ describe('Import', () => {
 		});
 
 		it('refuses a year for an unknown Album or a year that is not a year', async () => {
-			await expect(catalog.saveYears(token, { years: [{ albumId: 999, releaseYear: 1990 }] })).rejects.toThrow();
+			await expect(
+				catalog.saveYears(token, { years: [{ albumId: 999, releaseYear: 1990 }] })
+			).rejects.toThrow();
 			const [first] = (await catalog.listRecords()).records;
 			await expect(
 				catalog.saveYears(token, { years: [{ albumId: first.album.id, releaseYear: 19.5 }] })
@@ -698,10 +816,15 @@ describe('Owner login without configuration', () => {
 describe('Impossible dates', () => {
 	it('refuses them on a Record', async () => {
 		for (const date of ['2024-02-31', '2024-13-45']) {
-			await expect(addRecord({ artist: 'A', album: 'B', acquisition: gift(date) })).rejects.toThrow();
+			await expect(
+				addRecord({ artist: 'A', album: 'B', acquisition: gift(date) })
+			).rejects.toThrow();
 		}
 		expect((await catalog.listRecords()).records).toEqual([]);
-		expect((await addRecord({ artist: 'A', album: 'B', acquisition: gift('2024-02-29') })).acquisition.date).toBe('2024-02-29');
+		expect(
+			(await addRecord({ artist: 'A', album: 'B', acquisition: gift('2024-02-29') })).acquisition
+				.date
+		).toBe('2024-02-29');
 	});
 
 	it('refuses them on import', async () => {
@@ -718,34 +841,53 @@ describe('Impossible dates', () => {
 });
 
 describe('Import twice', () => {
-	const collection = [{ artist: 'A', album: 'B', date: '2024-01-01', acquisition: { kind: 'gift' as const } }];
+	const collection = [
+		{ artist: 'A', album: 'B', date: '2024-01-01', acquisition: { kind: 'gift' as const } }
+	];
 
 	it('refuses when the Collection already holds a Record', async () => {
 		await addRecord({ artist: 'X', album: 'Y' });
-		await expect(catalog.importRows(token, { collection, wishlist: [] })).rejects.toThrow('already');
+		await expect(catalog.importRows(token, { collection, wishlist: [] })).rejects.toThrow(
+			'already'
+		);
 		expect((await catalog.listRecords()).records).toHaveLength(1);
 	});
 
 	it('refuses when the Wishlist already holds an Item', async () => {
 		await catalog.addWishlistItem(token, { artist: 'X', album: 'Y', desire: 1 });
-		await expect(catalog.importRows(token, { collection, wishlist: [] })).rejects.toThrow('already');
+		await expect(catalog.importRows(token, { collection, wishlist: [] })).rejects.toThrow(
+			'already'
+		);
 		expect((await catalog.listRecords()).records).toEqual([]);
 	});
 
 	it('refuses a second import', async () => {
 		await catalog.importRows(token, { collection, wishlist: [] });
-		await expect(catalog.importRows(token, { collection, wishlist: [] })).rejects.toThrow('already');
+		await expect(catalog.importRows(token, { collection, wishlist: [] })).rejects.toThrow(
+			'already'
+		);
 		expect((await catalog.listRecords()).records).toHaveLength(1);
 	});
 });
 
 describe('Album lookup when one Album fails', () => {
 	it('skips it, keeps it pending and still looks up the others', async () => {
-		fakeAlbums.push({ artist: 'Daft Punk', title: 'Discovery', year: 2001, mbid: 'm2', cover: null });
+		fakeAlbums.push({
+			artist: 'Daft Punk',
+			title: 'Discovery',
+			year: 2001,
+			mbid: 'm2',
+			cover: null
+		});
 		await catalog.importRows(token, {
 			collection: [
 				{ artist: 'Air', album: 'Moon Safari', date: '2023-01-01', acquisition: { kind: 'gift' } },
-				{ artist: 'Daft Punk', album: 'Discovery', date: '2023-01-01', acquisition: { kind: 'gift' } }
+				{
+					artist: 'Daft Punk',
+					album: 'Discovery',
+					date: '2023-01-01',
+					acquisition: { kind: 'gift' }
+				}
 			],
 			wishlist: []
 		});
@@ -759,7 +901,9 @@ describe('Album lookup when one Album fails', () => {
 		});
 		expect(await catalog.lookupNext(token, { size: 5 })).toEqual({ total: 2, done: 1 });
 		expect(moonAttempts).toBe(1);
-		const discovery = (await catalog.listRecords()).records.find((r) => r.album.title === 'Discovery')!.album;
+		const discovery = (await catalog.listRecords()).records.find(
+			(r) => r.album.title === 'Discovery'
+		)!.album;
 		expect(discovery.releaseYear).toBe(2001);
 	});
 });

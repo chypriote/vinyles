@@ -8,7 +8,10 @@ export const load: PageServerLoad = async ({ platform, cookies }) => {
 	const catalog = catalogFromPlatform(platform);
 	const token = ownerToken(cookies);
 	if (token === '' || !(await catalog.verifyToken(token))) redirect(303, '/');
-	const [progress, unmatched] = await Promise.all([catalog.importProgress(token), catalog.listUnmatchedAlbums(token)]);
+	const [progress, unmatched] = await Promise.all([
+		catalog.importProgress(token),
+		catalog.listUnmatchedAlbums(token)
+	]);
 	return { progress, unmatched };
 };
 

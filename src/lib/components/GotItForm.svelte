@@ -7,7 +7,8 @@
 		wishlistItemId,
 		stores,
 		onDone
-	}: { wishlistItemId: number; stores: { id: number; name: string }[]; onDone: () => void } = $props();
+	}: { wishlistItemId: number; stores: { id: number; name: string }[]; onDone: () => void } =
+		$props();
 
 	let acquisition = $state(emptyAcquisition());
 	let error = $state<string | null>(null);

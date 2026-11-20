@@ -133,8 +133,7 @@ export interface AddWishlistItemInput {
 }
 
 export type AddWishlistItemResult =
-	| { status: 'added'; item: WishlistItemView }
-	| { status: 'already-owned'; records: RecordView[] };
+	{ status: 'added'; item: WishlistItemView } | { status: 'already-owned'; records: RecordView[] };
 
 export interface GotItInput {
 	wishlistItemId: number;
@@ -161,7 +160,9 @@ export interface ImportCollectionRow {
 	/** ISO date. */
 	date: string;
 	/** "Cadeau" in the sheet becomes `{ kind: 'gift' }`. */
-	acquisition: { kind: 'gift'; giver?: string | null } | { kind: 'purchase'; store: string; priceCents: number };
+	acquisition:
+		| { kind: 'gift'; giver?: string | null }
+		| { kind: 'purchase'; store: string; priceCents: number };
 }
 
 /** Wishlist row from the sheet, already cleaned. Bold = Desire 3, normal = Desire 2. */
