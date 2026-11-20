@@ -166,6 +166,11 @@
 	z-index: var(--layer-popup);
 }
 
+/* Neutral Buttons are card-colored; inside a Popup (also card-colored) they would vanish. */
+[data-slot='dialog-content'] [data-slot='button'].bg-card {
+	background-color: var(--background);
+}
+
 @media (prefers-reduced-motion: reduce) {
 	*,
 	::before,
