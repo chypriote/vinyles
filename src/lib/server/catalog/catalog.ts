@@ -2,6 +2,7 @@ import { and, count, eq, gt, inArray, isNotNull, isNull, lte, ne, or, sql } from
 import { drizzle, type DrizzleD1Database } from 'drizzle-orm/d1';
 import { albums, artists, priceQuotes, records, stores, wishlistItems } from '../db/schema';
 import { checkCoverImage } from './cover-check';
+import { AUTOMATIC_STORES, cheapestMatch, readOffers, type AutomaticStore } from './store-prices';
 import { issueToken, passwordMatches, tokenIsValid, UnauthorizedError } from './auth';
 import {
 	findAlbum,
@@ -52,6 +53,9 @@ const HEADER_BYTES = 64 * 1024;
 const UPLOAD_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const MAX_UPLOAD_BYTES = 2 * 1024 * 1024;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+/** Browser-like: some Stores refuse a script. */
+const PAGE_USER_AGENT = 'Mozilla/5.0 (X11; Linux x86_64; rv:130.0) Gecko/20100101 Firefox/130.0';
+const PAGE_TIMEOUT_MS = 8000;
 /** Marks an Album that was looked up on MusicBrainz and has no match. Null means not looked up yet. */
 const NO_MATCH = '';
 
@@ -198,14 +202,15 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 			.select({
 				itemId: priceQuotes.wishlistItemId,
 				store: { id: stores.id, name: stores.name },
-				priceCents: priceQuotes.priceCents
+				priceCents: priceQuotes.priceCents,
+				url: priceQuotes.url
 			})
 			.from(priceQuotes)
 			.innerJoin(stores, eq(priceQuotes.storeId, stores.id));
 		const quotesByItem = new Map<number, PriceQuote[]>();
 		for (const q of quoteRows) {
 			const list = quotesByItem.get(q.itemId) ?? [];
-			list.push({ store: q.store, priceCents: q.priceCents });
+			list.push({ store: q.store, priceCents: q.priceCents, ...(q.url ? { url: q.url } : {}) });
 			quotesByItem.set(q.itemId, list);
 		}
 		return rows.map((row) => ({
@@ -217,6 +222,28 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 				compare(a.store.name, b.store.name)
 			)
 		}));
+	}
+
+	/** The price at one Store: found, no matching product, or the Store could not be read. */
+	async function priceAt(
+		store: AutomaticStore,
+		artist: string,
+		album: string
+	): Promise<{ priceCents: number; url: string } | 'none' | 'unreadable'> {
+		const searchUrl = store.searchUrl(`${artist} ${album} vinyl`);
+		try {
+			const response = await fetch(searchUrl, {
+				headers: { 'user-agent': PAGE_USER_AGENT, 'accept-language': 'fr,en;q=0.8' },
+				signal: AbortSignal.timeout(PAGE_TIMEOUT_MS)
+			});
+			if (!response.ok) return 'unreadable';
+			const page = readOffers(await response.text(), searchUrl);
+			if (page.products === 0) return 'unreadable';
+			const match = cheapestMatch(page.offers, artist, album);
+			return match ? { priceCents: match.priceCents, url: match.url ?? searchUrl } : 'none';
+		} catch {
+			return 'unreadable';
+		}
 	}
 
 	// --- Writes: shared pieces -------------------------------------------------
@@ -606,6 +633,50 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 				.update(wishlistItems)
 				.set({ desire })
 				.where(inArray(wishlistItems.id, wishlistItemIds));
+		},
+
+		async refreshPrices(token, wishlistItemId) {
+			await owner(token);
+			const item = (await loadWishlist(wishlistItemId))[0];
+			if (!item) throw new Error('Wishlist Item not found');
+			const { artist, title } = item.album;
+			await db
+				.insert(stores)
+				.values(AUTOMATIC_STORES.map((s) => ({ name: s.name })))
+				.onConflictDoNothing();
+			const storeIds = new Map(
+				(await db.select().from(stores)).map((s) => [s.name, s.id] as const)
+			);
+			const found = await Promise.all(
+				AUTOMATIC_STORES.map(async (s) => ({
+					storeId: storeIds.get(s.name)!,
+					price: await priceAt(s, artist, title)
+				}))
+			);
+			const writes: unknown[] = [];
+			for (const { storeId, price } of found) {
+				if (price === 'unreadable') continue;
+				writes.push(
+					price === 'none'
+						? db
+								.delete(priceQuotes)
+								.where(
+									and(
+										eq(priceQuotes.wishlistItemId, wishlistItemId),
+										eq(priceQuotes.storeId, storeId)
+									)
+								)
+						: db
+								.insert(priceQuotes)
+								.values({ wishlistItemId, storeId, ...price })
+								.onConflictDoUpdate({
+									target: [priceQuotes.wishlistItemId, priceQuotes.storeId],
+									set: price
+								})
+				);
+			}
+			await run(writes);
+			return (await loadWishlist(wishlistItemId))[0];
 		},
 
 		async importRows(token, input) {

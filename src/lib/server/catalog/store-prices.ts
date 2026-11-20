@@ -1,0 +1,129 @@
+/** A Store whose search page the Refresh reads. Add a Store here to try it for every Wishlist Item. */
+export interface AutomaticStore {
+	name: string;
+	searchUrl(query: string): string;
+}
+
+const search = (base: string) => (query: string) => `${base}${encodeURIComponent(query)}`;
+
+export const AUTOMATIC_STORES: AutomaticStore[] = [
+	{ name: 'Nuclear Blast', searchUrl: search('https://www.nuclearblast.com/en/search?q=') },
+	{
+		name: 'Fnac',
+		searchUrl: search('https://www.fnac.com/SearchResult/ResultList.aspx?Search=')
+	},
+	{ name: 'Amazon', searchUrl: search('https://www.amazon.fr/s?k=') },
+	{ name: 'Impericon', searchUrl: search('https://www.impericon.com/eu/catalogsearch/result/?q=') },
+	{ name: 'Sound of Vinyl', searchUrl: search('https://www.soundofvinyl.fr/search?q=') },
+	{
+		name: 'Napalm Records',
+		searchUrl: search('https://napalmrecords.com/english/catalogsearch/result/?q=')
+	},
+	{ name: 'AFM Records', searchUrl: search('https://www.afm-records.de/en/search?q=') }
+];
+
+export interface Offer {
+	name: string;
+	priceCents: number;
+	url: string | null;
+}
+
+export interface PageOffers {
+	/** Products found in the structured data. 0 means the page cannot be read. */
+	products: number;
+	/** Products with a price in euros. */
+	offers: Offer[];
+}
+
+const JSON_LD = /<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
+
+type Json = unknown;
+const isObject = (value: Json): value is Record<string, Json> =>
+	typeof value === 'object' && value !== null && !Array.isArray(value);
+
+function isProduct(node: Record<string, Json>) {
+	const type = node['@type'];
+	return type === 'Product' || (Array.isArray(type) && type.includes('Product'));
+}
+
+function toCents(price: Json): number | null {
+	const text = typeof price === 'number' ? String(price) : typeof price === 'string' ? price : '';
+	const match = text
+		.trim()
+		.replace(',', '.')
+		.match(/^\d+(\.\d{1,2})?$/);
+	return match ? Math.round(Number(match[0]) * 100) : null;
+}
+
+function offerPrice(offers: Json): number | null {
+	for (const offer of Array.isArray(offers) ? offers : [offers]) {
+		if (!isObject(offer)) continue;
+		const currency = offer.priceCurrency;
+		if (currency !== undefined && currency !== 'EUR') continue;
+		const cents = toCents(offer.price ?? offer.lowPrice);
+		if (cents !== null && cents > 0) return cents;
+	}
+	return null;
+}
+
+function decode(text: string) {
+	return text
+		.replace(/&amp;/g, '&')
+		.replace(/&quot;/g, '"')
+		.replace(/&#0?39;/g, "'");
+}
+
+/** Products and euro prices in the JSON-LD of a page: a product page, or a search page that lists products. */
+export function readOffers(html: string, pageUrl: string): PageOffers {
+	const result: PageOffers = { products: 0, offers: [] };
+	const visit = (node: Json) => {
+		if (Array.isArray(node)) return node.forEach(visit);
+		if (!isObject(node)) return;
+		if (isProduct(node)) {
+			result.products += 1;
+			const priceCents = offerPrice(node.offers);
+			if (priceCents !== null && typeof node.name === 'string') {
+				result.offers.push({
+					name: decode(node.name),
+					priceCents,
+					url: absolute(node.url, pageUrl)
+				});
+			}
+		}
+		Object.values(node).forEach(visit);
+	};
+	for (const [, body] of html.matchAll(JSON_LD)) {
+		try {
+			visit(JSON.parse(body));
+		} catch {
+			// Not valid JSON: skip this block.
+		}
+	}
+	return result;
+}
+
+function absolute(url: Json, base: string): string | null {
+	if (typeof url !== 'string') return null;
+	try {
+		return new URL(url, base).href;
+	} catch {
+		return null;
+	}
+}
+
+const words = (text: string) =>
+	` ${text
+		.normalize('NFD')
+		.replace(/\p{M}/gu, '')
+		.toLowerCase()
+		.replace(/[^\p{L}\p{N}]+/gu, ' ')
+		.trim()} `;
+
+/** The cheapest offer whose name contains the Artist and the Album. The Variant is ignored. */
+export function cheapestMatch(offers: Offer[], artist: string, album: string): Offer | null {
+	const matches = offers.filter((o) => {
+		const name = words(o.name);
+		return name.includes(words(artist)) && name.includes(words(album));
+	});
+	return matches.sort((a, b) => a.priceCents - b.priceCents)[0] ?? null;
+}
