@@ -1181,6 +1181,41 @@ describe('Changing the Cover of an Album', () => {
 		});
 	});
 
+	describe('upload', () => {
+		const png = (size: number) => new Uint8Array(size).fill(7).buffer;
+
+		it('replaces the Cover, marks it chosen and changes its version', async () => {
+			const record = await addRecord({ artist: 'Air', album: 'Moon Safari' });
+			await catalog.uploadCover(token, {
+				albumId: record.album.id,
+				body: png(10),
+				contentType: 'image/png'
+			});
+			const after = (await catalog.listRecords()).records[0].album;
+			const object = await env.COVERS.get(after.coverKey!);
+			expect((await object?.arrayBuffer())?.byteLength).toBe(10);
+			expect(object?.httpMetadata?.contentType).toBe('image/png');
+			expect(after.coverChosen).toBe(true);
+			expect(after.coverVersion).not.toBe(record.album.coverVersion);
+		});
+
+		it('refuses other types, big or empty files, unknown Albums and a missing login', async () => {
+			const record = await addRecord({ artist: 'Air', album: 'Moon Safari' });
+			const upload = (over: object, t = token) =>
+				catalog.uploadCover(t, {
+					albumId: record.album.id,
+					body: png(10),
+					contentType: 'image/png',
+					...over
+				});
+			await expect(upload({ contentType: 'image/svg+xml' })).rejects.toThrow('JPEG, PNG or WebP');
+			await expect(upload({ body: png(2 * 1024 * 1024 + 1) })).rejects.toThrow('under 2 MB');
+			await expect(upload({ body: png(0) })).rejects.toThrow('under 2 MB');
+			await expect(upload({ albumId: 99999 })).rejects.toThrow('Album not found');
+			await expect(upload({}, 'bad-token')).rejects.toThrow();
+		});
+	});
+
 	describe('pick', () => {
 		it('copies a Discogs image over the Cover, and refuses other hosts', async () => {
 			fakeAlbums.push(group());

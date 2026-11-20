@@ -3,7 +3,9 @@
 	import type { CoverCandidate } from '#lib/server/catalog/types';
 	import Button from './Button.svelte';
 	import ConfirmDialog from './ConfirmDialog.svelte';
+	import { Button as IconButton } from './ui/button/index.js';
 	import { Input } from './ui/input/index.js';
+	import UploadIcon from '@lucide/svelte/icons/upload';
 
 	let {
 		albumId,
@@ -59,6 +61,54 @@
 		if (text.trim()) load(`/api/albums/${albumId}/cover-candidates?q=${encodeURIComponent(text)}`);
 	}
 
+	let fileInput = $state<HTMLInputElement | null>(null);
+	let uploading = $state(false);
+
+	/** Scales the image down to 1000 px on its long side and re-encodes it as JPEG. */
+	async function shrink(file: File): Promise<Blob> {
+		const bitmap = await createImageBitmap(file);
+		const scale = Math.min(1, 1000 / Math.max(bitmap.width, bitmap.height));
+		const canvas = document.createElement('canvas');
+		canvas.width = Math.round(bitmap.width * scale);
+		canvas.height = Math.round(bitmap.height * scale);
+		canvas.getContext('2d')!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+		bitmap.close();
+		const blob = await new Promise<Blob | null>((done) => canvas.toBlob(done, 'image/jpeg', 0.85));
+		if (!blob) throw new Error('shrink failed');
+		return blob;
+	}
+
+	async function upload() {
+		const file = fileInput?.files?.[0];
+		if (!file) return;
+		uploading = true;
+		pickError = null;
+		try {
+			const body = await shrink(file).catch(() => null);
+			if (!body) {
+				pickError = 'Could not read this image';
+				return;
+			}
+			const response = await fetch(`/api/albums/${albumId}/cover-upload`, {
+				method: 'POST',
+				headers: { 'content-type': body.type },
+				body
+			});
+			if (response.ok) {
+				await invalidateAll();
+				onDone();
+			} else {
+				pickError =
+					((await response.json()) as { error?: string }).error ?? 'Could not upload the cover';
+			}
+		} catch {
+			pickError = 'Could not upload the cover';
+		} finally {
+			uploading = false;
+			if (fileInput) fileInput.value = '';
+		}
+	}
+
 	function choose(candidate: CoverCandidate) {
 		picked = candidate;
 		confirmOpen = true;
@@ -90,6 +140,23 @@
 
 <div class="flex min-w-0 flex-col gap-3">
 	<form class="flex gap-2" onsubmit={search}>
+		<input
+			bind:this={fileInput}
+			type="file"
+			accept="image/jpeg,image/png,image/webp"
+			class="hidden"
+			onchange={upload}
+		/>
+		<IconButton
+			variant="neutral"
+			size="icon"
+			aria-label="Upload a cover"
+			loading={uploading}
+			disabled={busy}
+			onclick={() => fileInput?.click()}
+		>
+			<UploadIcon class="size-5" />
+		</IconButton>
 		<Input type="search" bind:value={text} aria-label="Search covers" class="flex-1" />
 		<Button type="submit" disabled={!text.trim()} {loading}>Search</Button>
 	</form>

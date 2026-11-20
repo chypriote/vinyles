@@ -44,6 +44,12 @@ export interface CoverCandidate {
 	year?: number | null;
 }
 
+export interface UploadCoverInput {
+	albumId: number;
+	body: ArrayBuffer;
+	contentType: string;
+}
+
 export interface PickCoverInput {
 	albumId: number;
 	candidateId: string;
@@ -262,6 +268,8 @@ export interface Catalog {
 	searchCoverCandidates(token: string, query: string): Promise<CoverCandidate[]>;
 	/** Copies the picked image over the Cover of the Album and marks it Owner-chosen. */
 	pickCover(token: string, input: PickCoverInput): Promise<void>;
+	/** Uses an uploaded JPEG, PNG or WebP image (under 2 MB) as the Cover of the Album. */
+	uploadCover(token: string, input: UploadCoverInput): Promise<void>;
 
 	// Records (Owner)
 	addRecord(token: string, input: AddRecordInput): Promise<RecordView>;
