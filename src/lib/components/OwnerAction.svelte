@@ -2,8 +2,20 @@
 	import Button from './Button.svelte';
 	import LoginForm from './LoginForm.svelte';
 	import Popup from './Popup.svelte';
+	import RecordForm from './RecordForm.svelte';
+	import WishlistItemForm from './WishlistItemForm.svelte';
 
-	let { isOwner }: { isOwner: boolean } = $props();
+	let {
+		isOwner,
+		current,
+		artists = [],
+		stores = []
+	}: {
+		isOwner: boolean;
+		current: 'collection' | 'wishlist';
+		artists?: { id: number; name: string }[];
+		stores?: { id: number; name: string }[];
+	} = $props();
 
 	let loginOpen = $state(false);
 	let addOpen = $state(false);
@@ -36,5 +48,14 @@
 	{/snippet}
 </Popup>
 
-<!-- Placeholder: the Add form comes in a later slice. -->
-<Popup bind:open={addOpen} album="Add" />
+{#if isOwner}
+	<Popup bind:open={addOpen} album={current === 'wishlist' ? 'Add to wishlist' : 'Add a record'}>
+		{#snippet details()}
+			{#if current === 'wishlist'}
+				<WishlistItemForm {artists} {stores} onDone={() => (addOpen = false)} />
+			{:else}
+				<RecordForm {artists} {stores} onDone={() => (addOpen = false)} />
+			{/if}
+		{/snippet}
+	</Popup>
+{/if}

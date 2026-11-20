@@ -10,6 +10,7 @@
 	import EmptyState from '#lib/components/EmptyState.svelte';
 	import OwnerAction from '#lib/components/OwnerAction.svelte';
 	import Popup from '#lib/components/Popup.svelte';
+	import RecordForm from '#lib/components/RecordForm.svelte';
 	import SearchField from '#lib/components/SearchField.svelte';
 	import Select from '#lib/components/Select.svelte';
 	import StickyBar from '#lib/components/StickyBar.svelte';
@@ -41,6 +42,7 @@
 	const records = $derived(filtered ?? data.records);
 
 	$effect(() => {
+		data.records; // refetch the filtered list after a change
 		if (!isFiltering && sort === 'artist') {
 			filtered = null;
 			return;
@@ -71,6 +73,7 @@
 	let selected = $state<Row | null>(null);
 	let anchor = $state<HTMLElement | null>(null);
 	let open = $state(false);
+	let editOpen = $state(false);
 
 	function select(record: Row, el: HTMLElement) {
 		selected = record;
@@ -87,7 +90,7 @@
 		<Chip tone="success" label="spent" value={formatCents(data.totals.totalSpentCents)} />
 	{/snippet}
 	{#snippet action()}
-		<OwnerAction isOwner={data.isOwner} />
+		<OwnerAction isOwner={data.isOwner} current="collection" artists={data.artists} stores={data.stores} />
 	{/snippet}
 	{#snippet controls()}
 		<SearchField bind:value={search} label="Search artist or album" placeholder="Search" />
@@ -152,6 +155,29 @@
 					</dd>
 				{/if}
 			</dl>
+		{/snippet}
+		{#snippet actions()}
+			{#if data.isOwner}
+				<Button
+					onclick={() => {
+						open = false;
+						editOpen = true;
+					}}>Edit</Button
+				>
+			{/if}
+		{/snippet}
+	</Popup>
+{/if}
+
+{#if data.isOwner && selected}
+	<Popup bind:open={editOpen} album="Edit record">
+		{#snippet details()}
+			<RecordForm
+				record={selected}
+				artists={data.artists}
+				stores={data.stores}
+				onDone={() => (editOpen = false)}
+			/>
 		{/snippet}
 	</Popup>
 {/if}

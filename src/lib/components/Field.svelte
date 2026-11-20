@@ -7,8 +7,11 @@
 		label,
 		type = 'text',
 		required = false,
-		error = null
+		error = null,
+		list = undefined
 	}: {
+		/** id of a `<datalist>` with suggestions. */
+		list?: string;
 		value?: string;
 		label: string;
 		type?: 'text' | 'password' | 'number' | 'date';
@@ -25,6 +28,7 @@
 		{id}
 		{type}
 		{required}
+		{list}
 		bind:value
 		step={type === 'number' ? '0.01' : undefined}
 		aria-invalid={error ? true : undefined}
