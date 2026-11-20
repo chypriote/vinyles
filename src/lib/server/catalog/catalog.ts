@@ -8,6 +8,7 @@ import {
 	findCover,
 	findReleaseCandidates,
 	searchCandidates,
+	searchDiscogs,
 	searchTypedCandidates
 } from './lookup';
 import type {
@@ -32,6 +33,8 @@ export interface CatalogEnv {
 	COVERS: R2Bucket;
 	OWNER_PASSWORD: string;
 	JWT_SECRET: string;
+	/** Discogs personal access token. Without it, searches skip Discogs. */
+	DISCOGS_TOKEN?: string;
 }
 
 export interface CatalogOptions {
@@ -383,7 +386,12 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 
 		async searchCoverCandidates(token, query) {
 			await owner(token);
-			return searchTypedCandidates(query, intervalMs);
+			if (!/[\p{L}\p{N}]/u.test(query)) return [];
+			const musicBrainz = await searchTypedCandidates(query, intervalMs);
+			if (!env.DISCOGS_TOKEN) return musicBrainz;
+			// A Discogs failure must not hide the MusicBrainz hits.
+			const discogs = await searchDiscogs(query, env.DISCOGS_TOKEN).catch(() => []);
+			return [...musicBrainz, ...discogs];
 		},
 
 		async pickCover(token, input) {
@@ -392,10 +400,10 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 				await db.select({ id: albums.id }).from(albums).where(eq(albums.id, input.albumId))
 			)[0];
 			if (!album) throw new Error('Album not found');
-			if (input.source !== 'release' && input.source !== 'release-group') {
+			if (!['release', 'release-group', 'discogs'].includes(input.source)) {
 				throw new Error('Unknown candidate');
 			}
-			const image = await findCandidateImage(input.source, input.candidateId);
+			const image = await findCandidateImage(input.source, input.candidateId, env.DISCOGS_TOKEN);
 			if (!image) throw new Error('This candidate has no image');
 			const coverKey = `covers/${album.id}`;
 			await env.COVERS.put(coverKey, image.body, {

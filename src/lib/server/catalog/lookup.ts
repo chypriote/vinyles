@@ -55,8 +55,11 @@ export function findCover(musicbrainzId: string): Promise<FoundCover | null> {
 	return fetchCover(`${CAA}/release-group/${encodeURIComponent(musicbrainzId)}/front-500`);
 }
 
-async function fetchCover(url: string): Promise<FoundCover | null> {
-	const response = await fetch(url, { headers: { 'User-Agent': USER_AGENT } });
+async function fetchCover(
+	url: string,
+	headers: Record<string, string> = {}
+): Promise<FoundCover | null> {
+	const response = await fetch(url, { headers: { 'User-Agent': USER_AGENT, ...headers } });
 	if (response.status === 404) return null;
 	if (!response.ok) throw new Error(`Cover Art Archive answered ${response.status}`);
 	return {
@@ -69,7 +72,7 @@ const CAA = 'https://coverartarchive.org';
 const MAX_RELEASE_CANDIDATES = 12;
 const MAX_SEARCH_CANDIDATES = 5;
 
-export type CoverSource = 'release' | 'release-group';
+export type CoverSource = 'release' | 'release-group' | 'discogs';
 
 export interface FoundCandidate {
 	id: string;
@@ -80,7 +83,7 @@ export interface FoundCandidate {
 	year?: number | null;
 }
 
-const imageUrl = (source: CoverSource, id: string, size: 250 | 500) =>
+const imageUrl = (source: Exclude<CoverSource, 'discogs'>, id: string, size: 250 | 500) =>
 	`${CAA}/${source}/${encodeURIComponent(id)}/front-${size}`;
 
 async function musicBrainz<T>(url: URL, intervalMs: number): Promise<T> {
@@ -173,7 +176,49 @@ export async function searchTypedCandidates(
 	);
 }
 
+const DISCOGS_IMAGE_HOST = 'i.discogs.com';
+
+/** Discogs master search hits with an image, at most 12. Throws when Discogs fails. */
+export async function searchDiscogs(text: string, token: string): Promise<FoundCandidate[]> {
+	const url = new URL('https://api.discogs.com/database/search');
+	url.searchParams.set('q', text);
+	url.searchParams.set('type', 'master');
+	url.searchParams.set('per_page', String(MAX_RELEASE_CANDIDATES));
+	const response = await fetch(url, {
+		headers: { 'User-Agent': USER_AGENT, Authorization: `Discogs token=${token}` }
+	});
+	if (!response.ok) throw new Error(`Discogs answered ${response.status}`);
+	const data = (await response.json()) as {
+		results?: { title: string; year?: string; thumb?: string; cover_image?: string }[];
+	};
+	return (data.results ?? []).flatMap((hit) => {
+		if (!hit.thumb || !hit.cover_image) return [];
+		// Discogs titles read "Artist - Album".
+		const [artist, ...rest] = hit.title.split(' - ');
+		const year = Number.parseInt(hit.year ?? '', 10);
+		return [
+			{
+				id: hit.cover_image,
+				source: 'discogs' as const,
+				imageUrl: hit.thumb,
+				artist: rest.length ? artist : '',
+				title: rest.length ? rest.join(' - ') : hit.title,
+				year: Number.isInteger(year) ? year : null
+			}
+		];
+	});
+}
+
 /** The image of a candidate. Null when it has none. */
-export function findCandidateImage(source: CoverSource, id: string): Promise<FoundCover | null> {
-	return fetchCover(imageUrl(source, id, 500));
+export function findCandidateImage(
+	source: CoverSource,
+	id: string,
+	discogsToken?: string
+): Promise<FoundCover | null> {
+	if (source !== 'discogs') return fetchCover(imageUrl(source, id, 500));
+	const url = new URL(id);
+	if (url.protocol !== 'https:' || url.host !== DISCOGS_IMAGE_HOST || !discogsToken) {
+		throw new Error('Unknown candidate');
+	}
+	return fetchCover(url.href, { Authorization: `Discogs token=${discogsToken}` });
 }

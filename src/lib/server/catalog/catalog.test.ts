@@ -44,11 +44,13 @@ interface FakeCall {
 let fakeAlbums: FakeAlbum[];
 let calls: FakeCall[];
 let failMusicBrainz: boolean;
+let failDiscogs: boolean;
 
 function installFakeWeb() {
 	fakeAlbums = [];
 	calls = [];
 	failMusicBrainz = false;
+	failDiscogs = false;
 	vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
 		const request = new Request(input as RequestInfo, init);
 		const url = new URL(request.url);
@@ -82,6 +84,23 @@ function installFakeWeb() {
 					'first-release-date': `${a.year}-03-01`
 				}));
 			return Response.json({ 'release-groups': groups });
+		}
+		if (url.host === 'api.discogs.com') {
+			if (failDiscogs) return new Response('unavailable', { status: 503 });
+			return Response.json({
+				results: [
+					{
+						title: 'Air - Moon Safari',
+						year: '1998',
+						thumb: 'https://i.discogs.com/thumb.jpg',
+						cover_image: 'https://i.discogs.com/full.jpg'
+					},
+					{ title: 'No Image', year: '1999', thumb: '', cover_image: '' }
+				]
+			});
+		}
+		if (url.host === 'i.discogs.com') {
+			return new Response('discogs-bytes', { headers: { 'content-type': 'image/jpeg' } });
 		}
 		if (url.host === 'coverartarchive.org') {
 			const bytes = [
@@ -1122,11 +1141,31 @@ describe('Changing the Cover of an Album', () => {
 					group({ mbid: `mb-${i}`, year: 1990 + i, cover: `c${i}` })
 				)
 			);
-			const found = await catalog.searchCoverCandidates(token, 'Air: Moon Safari');
+			const hits = await catalog.searchCoverCandidates(token, 'Air: Moon Safari');
+			const found = hits.filter((c) => c.source === 'release-group');
 			expect(found).toHaveLength(12);
 			expect(found[3]).toMatchObject({ id: 'mb-3', source: 'release-group', year: 1993 });
 			expect(await catalog.searchCoverCandidates(token, ' :: ')).toEqual([]);
 			await expect(catalog.searchCoverCandidates('bad-token', 'Air')).rejects.toThrow();
+		});
+
+		it('add Discogs hits with an image to a typed search, and survive a Discogs failure', async () => {
+			fakeAlbums.push(group({ cover: 'c' }));
+			const found = await catalog.searchCoverCandidates(token, 'Air Moon Safari');
+			expect(found.map((c) => c.source)).toEqual(['release-group', 'discogs']);
+			expect(found[1]).toMatchObject({
+				id: 'https://i.discogs.com/full.jpg',
+				imageUrl: 'https://i.discogs.com/thumb.jpg',
+				artist: 'Air',
+				title: 'Moon Safari',
+				year: 1998
+			});
+			const discogs = calls.find((c) => c.host === 'api.discogs.com')!;
+			expect(discogs.url.searchParams.get('type')).toBe('master');
+
+			failDiscogs = true;
+			const again = await catalog.searchCoverCandidates(token, 'Air Moon Safari');
+			expect(again.map((c) => c.source)).toEqual(['release-group']);
 		});
 
 		it('make at most one MusicBrainz request per interval', async () => {
@@ -1143,6 +1182,26 @@ describe('Changing the Cover of an Album', () => {
 	});
 
 	describe('pick', () => {
+		it('copies a Discogs image over the Cover, and refuses other hosts', async () => {
+			fakeAlbums.push(group());
+			const record = await addRecord({ artist: 'Air', album: 'Moon Safari' });
+			await catalog.pickCover(token, {
+				albumId: record.album.id,
+				candidateId: 'https://i.discogs.com/full.jpg',
+				source: 'discogs'
+			});
+			const after = (await catalog.listRecords()).records[0].album;
+			expect(await (await env.COVERS.get(after.coverKey!))?.text()).toBe('discogs-bytes');
+			expect(after.coverChosen).toBe(true);
+			await expect(
+				catalog.pickCover(token, {
+					albumId: record.album.id,
+					candidateId: 'https://evil.example/x.jpg',
+					source: 'discogs'
+				})
+			).rejects.toThrow('Unknown candidate');
+		});
+
 		async function matched() {
 			fakeAlbums.push(
 				group({
