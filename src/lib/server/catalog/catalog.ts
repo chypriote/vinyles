@@ -45,6 +45,8 @@ export interface CatalogOptions {
 type Db = DrizzleD1Database;
 type BatchStatements = Parameters<Db['batch']>[0];
 
+const UPLOAD_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+const MAX_UPLOAD_BYTES = 2 * 1024 * 1024;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 /** Marks an Album that was looked up on MusicBrainz and has no match. Null means not looked up yet. */
 const NO_MATCH = '';
@@ -98,6 +100,16 @@ function albumComparator(sort: SortKey | undefined) {
 export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Catalog {
 	const db = drizzle(env.DB);
 	const intervalMs = options.lookupIntervalMs ?? 1000;
+
+	/** Writes the image as the Cover of the Album, marks it Owner-chosen and changes its URL. */
+	async function storeCover(albumId: number, body: ArrayBuffer, contentType: string) {
+		const coverKey = `covers/${albumId}`;
+		await env.COVERS.put(coverKey, body, { httpMetadata: { contentType } });
+		await db
+			.update(albums)
+			.set({ coverKey, coverChosen: true, coverVersion: sql`${albums.coverVersion} + 1` })
+			.where(eq(albums.id, albumId));
+	}
 
 	async function owner(token: string) {
 		if (!env.JWT_SECRET || !(await tokenIsValid(token, env.JWT_SECRET)))
@@ -405,14 +417,21 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 			}
 			const image = await findCandidateImage(input.source, input.candidateId, env.DISCOGS_TOKEN);
 			if (!image) throw new Error('This candidate has no image');
-			const coverKey = `covers/${album.id}`;
-			await env.COVERS.put(coverKey, image.body, {
-				httpMetadata: { contentType: image.contentType }
-			});
-			await db
-				.update(albums)
-				.set({ coverKey, coverChosen: true, coverVersion: sql`${albums.coverVersion} + 1` })
-				.where(eq(albums.id, album.id));
+			await storeCover(album.id, image.body, image.contentType);
+		},
+
+		async uploadCover(token, input) {
+			await owner(token);
+			if (!UPLOAD_TYPES.includes(input.contentType))
+				throw new Error('Use a JPEG, PNG or WebP image');
+			if (input.body.byteLength === 0 || input.body.byteLength > MAX_UPLOAD_BYTES) {
+				throw new Error('The image must be under 2 MB');
+			}
+			const album = (
+				await db.select({ id: albums.id }).from(albums).where(eq(albums.id, input.albumId))
+			)[0];
+			if (!album) throw new Error('Album not found');
+			await storeCover(album.id, input.body, input.contentType);
 		},
 
 		async login(password) {
