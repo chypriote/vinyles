@@ -82,6 +82,9 @@
 	--info: var(--sky-400); /* color.bg.info */
 	--icon-accent: light-dark(var(--coral-600), var(--coral-400)); /* color.icon.accent */
 	--overlay: var(--scrim); /* color.bg.overlay */
+	--shadow-popup:
+		0 10px 0 light-dark(var(--shadow-color), var(--shadow-color-dark)),
+		0 14px 34px light-dark(rgb(26 47 107 / 0.3), rgb(0 0 0 / 0.5));
 	--shadow-raised: 0 3px 0 light-dark(var(--shadow-color), var(--shadow-color-dark));
 	--outline-focus-width: 3px;
 	--control-size-min: 44px;

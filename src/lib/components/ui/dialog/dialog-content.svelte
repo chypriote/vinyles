@@ -27,7 +27,7 @@
 		bind:ref
 		data-slot="dialog-content"
 		class={cn(
-			"fixed top-1/2 left-1/2 z-(--layer-popup) grid max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-(--popup-width-max) -translate-x-1/2 -translate-y-1/2 gap-4 overflow-y-auto rounded-xl bg-card p-5 text-foreground shadow-(--shadow-raised) outline-none data-[state=closed]:opacity-0 motion-safe:transition-opacity motion-safe:duration-150",
+			"fixed top-1/2 left-1/2 z-(--layer-popup) grid max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-(--popup-width-max) -translate-x-1/2 -translate-y-1/2 gap-4 overflow-y-auto rounded-xl bg-card p-[18px] text-foreground shadow-(--shadow-popup) outline-none data-[state=closed]:opacity-0 motion-safe:transition-opacity motion-safe:duration-150",
 			className
 		)}
 		{...restProps}
@@ -36,7 +36,7 @@
 		{#if showCloseButton}
 			<DialogPrimitive.Close
 				data-slot="dialog-close"
-				class="absolute end-3 top-3 inline-flex size-11 cursor-pointer items-center justify-center rounded-control bg-card text-foreground outline-ring hover:bg-muted focus-visible:outline-3 focus-visible:outline-solid"
+				class="absolute end-3 top-3 inline-flex size-11 cursor-pointer items-center justify-center rounded-full bg-background text-foreground outline-ring hover:bg-muted focus-visible:outline-3 focus-visible:outline-solid"
 			>
 				<XIcon class="size-5" />
 				<span class="sr-only">Close</span>

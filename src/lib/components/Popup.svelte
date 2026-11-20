@@ -72,34 +72,35 @@
 			}
 		}}
 	>
-		<Dialog.Header>
-			<div class="flex items-start gap-4">
-				{#if !artist}
-					<!-- Form Popup: title only. -->
-				{:else if coverUrl && !imgFailed}
+		{#if artist}
+			<div class="grid grid-cols-[minmax(0,var(--popup-cover-size))_minmax(0,1fr)] gap-4">
+				{#if coverUrl && !imgFailed}
 					<img
 						src={coverUrl}
 						alt=""
-						class="size-(--popup-cover-size) shrink-0 rounded-(--cover-radius) object-cover"
+						class="aspect-square w-full rounded-2xl object-cover shadow-(--shadow-raised)"
 						onerror={() => (imgFailed = true)}
 					/>
 				{:else}
 					<span
 						aria-hidden="true"
-						class="flex size-(--popup-cover-size) shrink-0 items-center justify-center rounded-(--cover-radius) text-4xl font-extrabold text-primary-foreground {tileClass(
+						class="flex aspect-square w-full items-center justify-center rounded-2xl text-4xl font-extrabold text-primary-foreground shadow-(--shadow-raised) {tileClass(
 							artist
 						)}"
 					>
 						{initials(artist)}
 					</span>
 				{/if}
-				<div class="flex min-w-0 flex-col gap-1">
+				<div class="flex min-w-0 flex-col gap-0.5">
 					<Dialog.Title>{album}</Dialog.Title>
-					{#if artist}<Dialog.Description>{artist}</Dialog.Description>{/if}
+					<Dialog.Description class="mb-2">{artist}</Dialog.Description>
+					{@render details?.()}
 				</div>
 			</div>
-		</Dialog.Header>
-		{@render details?.()}
+		{:else}
+			<Dialog.Title>{album}</Dialog.Title>
+			{@render details?.()}
+		{/if}
 		{#if actions}
 			<Dialog.Footer>{@render actions()}</Dialog.Footer>
 		{/if}
