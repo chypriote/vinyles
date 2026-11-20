@@ -70,6 +70,10 @@ export const ownerActions = {
 		run<{ id: number }>(event, async (catalog, token, { id }) => {
 			await catalog.drop(token, id);
 		}),
+	refreshPrices: (event: RequestEvent) =>
+		run<{ id: number }>(event, async (catalog, token, { id }) => {
+			await catalog.refreshPrices(token, id);
+		}),
 	setDesire: (event: RequestEvent) =>
 		run<{ ids: number[]; desire: Desire }>(event, async (catalog, token, { ids, desire }) => {
 			await catalog.setDesire(token, ids, desire);

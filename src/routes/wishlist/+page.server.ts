@@ -13,5 +13,6 @@ export const actions: Actions = {
 	editWishlistItem: ownerActions.editWishlistItem,
 	gotIt: ownerActions.gotIt,
 	drop: ownerActions.drop,
-	setDesire: ownerActions.setDesire
+	setDesire: ownerActions.setDesire,
+	refreshPrices: ownerActions.refreshPrices
 };

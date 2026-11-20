@@ -29,6 +29,13 @@
       "when": 1795186584861,
       "tag": "0003_cover_check",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1795187855638,
+      "tag": "0004_price_quote_url",
+      "breakpoints": true
     }
   ]
 }

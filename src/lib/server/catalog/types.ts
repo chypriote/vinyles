@@ -70,6 +70,8 @@ export interface RecordView {
 export interface PriceQuote {
 	store: Store;
 	priceCents: number;
+	/** Page the Refresh read the price from. Missing for a price the Owner typed. */
+	url?: string;
 }
 
 export interface WishlistItemView {
@@ -319,6 +321,11 @@ export interface Catalog {
 	gotIt(token: string, input: GotItInput): Promise<RecordView>;
 	drop(token: string, wishlistItemId: number): Promise<void>;
 	setDesire(token: string, wishlistItemIds: number[], desire: Desire): Promise<void>;
+	/**
+	 * Reads the price of the Wishlist Item at every automatic Store and replaces its Price Quotes there.
+	 * A Store with no matching product loses its quote. A Store that cannot be read keeps it.
+	 */
+	refreshPrices(token: string, wishlistItemId: number): Promise<WishlistItemView>;
 
 	// Import (Owner, once)
 	importRows(token: string, input: ImportRowsInput): Promise<ImportRowsResult>;

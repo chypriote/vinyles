@@ -92,6 +92,8 @@
 	let coverOpen = $state(false);
 
 	let dropping = $state(false);
+	let refreshing = $state(false);
+	let refreshError = $state('');
 	let settingDesire = $state<1 | 2 | 3 | null>(null);
 	let selecting = $state(false);
 	let checked = $state<number[]>([]);
@@ -110,6 +112,15 @@
 	function toggleSelecting() {
 		selecting = !selecting;
 		checked = [];
+	}
+
+	async function refreshPrices() {
+		if (!selected) return;
+		refreshing = true;
+		refreshError = '';
+		const outcome = await postAction('?/refreshPrices', { id: selected.id });
+		refreshing = false;
+		if (!outcome.ok) refreshError = outcome.error;
 	}
 
 	async function drop() {
@@ -244,7 +255,16 @@
 					{/if}
 					{#each selected.priceQuotes as quote (quote.store.id)}
 						<dt class="text-muted-foreground">{quote.store.name}</dt>
-						<dd>{formatCents(quote.priceCents)}</dd>
+						<dd>
+							{#if quote.url}
+								<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- external store page -->
+								<a class="underline" href={quote.url} target="_blank" rel="noopener noreferrer">
+									{formatCents(quote.priceCents)}
+								</a>
+							{:else}
+								{formatCents(quote.priceCents)}
+							{/if}
+						</dd>
 					{/each}
 				{/if}
 			</dl>
@@ -276,7 +296,11 @@
 				>
 					Change cover
 				</Button>
+				<Button loading={refreshing} onclick={refreshPrices}>Refresh prices</Button>
 				<Button loading={dropping} onclick={drop}>Drop</Button>
+				{#if refreshError}
+					<p class="text-sm font-extrabold text-destructive" role="alert">{refreshError}</p>
+				{/if}
 			{/if}
 		{/snippet}
 	</Popup>
