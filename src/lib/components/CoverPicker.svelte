@@ -3,7 +3,6 @@
 	import type { CoverCandidate } from '#lib/server/catalog/types';
 	import Button from './Button.svelte';
 	import ConfirmDialog from './ConfirmDialog.svelte';
-	import { Button as GridButton } from './ui/button/index.js';
 	import { Input } from './ui/input/index.js';
 
 	let {
@@ -103,14 +102,13 @@
 	{:else if shown.length === 0 && candidates.length === 0}
 		<p class="text-sm text-muted-foreground">No cover found</p>
 	{:else}
-		<ul class="grid grid-cols-3 gap-2">
+		<ul class="grid grid-cols-4 gap-3">
 			{#each candidates as candidate (key(candidate))}
 				<li class="min-w-0" hidden={failed.includes(key(candidate))}>
-					<GridButton
-						variant="neutral"
-						class="h-auto w-full min-w-0 flex-col items-stretch gap-1 overflow-hidden p-1 whitespace-normal"
+					<button
+						type="button"
+						class="flex w-full min-w-0 cursor-pointer flex-col gap-1 text-start outline-ring focus-visible:outline-3 focus-visible:outline-solid disabled:opacity-50"
 						disabled={busy}
-						loading={busy && picked?.id === candidate.id}
 						onclick={() => choose(candidate)}
 					>
 						<img
@@ -118,17 +116,20 @@
 							alt=""
 							loading="lazy"
 							onerror={() => (failed = [...failed, key(candidate)])}
-							class="aspect-square w-full rounded-(--cover-radius) object-cover"
+							class="aspect-square w-full rounded-sm bg-muted object-cover shadow-(--shadow-raised)"
 						/>
 						{#if candidate.title}
 							<span
-								class="block truncate text-[11px] leading-tight"
+								class="block truncate text-[11px] leading-tight font-bold"
 								title="{candidate.artist} – {candidate.title}"
 							>
 								{candidate.artist} – {candidate.title}{candidate.year ? ` (${candidate.year})` : ''}
 							</span>
 						{/if}
-					</GridButton>
+						<span class="block truncate text-[11px] leading-tight text-muted-foreground">
+							{candidate.source === 'discogs' ? 'Discogs' : 'MusicBrainz'}
+						</span>
+					</button>
 				</li>
 			{/each}
 		</ul>
