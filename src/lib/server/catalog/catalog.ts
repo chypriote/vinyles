@@ -2,7 +2,13 @@ import { and, count, eq, inArray, isNotNull, sql } from 'drizzle-orm';
 import { drizzle, type DrizzleD1Database } from 'drizzle-orm/d1';
 import { albums, artists, priceQuotes, records, stores, wishlistItems } from '../db/schema';
 import { issueToken, passwordMatches, tokenIsValid, UnauthorizedError } from './auth';
-import { findAlbum, findCover } from './lookup';
+import {
+	findAlbum,
+	findCandidateImage,
+	findCover,
+	findReleaseCandidates,
+	searchCandidates
+} from './lookup';
 import type {
 	AcquisitionInput,
 	AlbumSummary,
@@ -104,7 +110,9 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 		artist: artists.name,
 		title: albums.title,
 		releaseYear: albums.releaseYear,
-		coverKey: albums.coverKey
+		coverKey: albums.coverKey,
+		coverChosen: albums.coverChosen,
+		coverVersion: albums.coverVersion
 	};
 
 	async function loadRecords(id?: number): Promise<RecordView[]> {
@@ -332,6 +340,46 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 			const object = await env.COVERS.get(album.coverKey);
 			if (!object) return null;
 			return { body: object.body, contentType: object.httpMetadata?.contentType ?? 'image/jpeg' };
+		},
+
+		async listCoverCandidates(token, albumId) {
+			await owner(token);
+			const album = (
+				await db
+					.select({
+						artist: artists.name,
+						title: albums.title,
+						musicbrainzId: albums.musicbrainzId
+					})
+					.from(albums)
+					.innerJoin(artists, eq(albums.artistId, artists.id))
+					.where(eq(albums.id, albumId))
+			)[0];
+			if (!album) throw new Error('Album not found');
+			return album.musicbrainzId && album.musicbrainzId !== NO_MATCH
+				? findReleaseCandidates(album.musicbrainzId, intervalMs)
+				: searchCandidates(album.artist, album.title, intervalMs);
+		},
+
+		async pickCover(token, input) {
+			await owner(token);
+			const album = (
+				await db.select({ id: albums.id }).from(albums).where(eq(albums.id, input.albumId))
+			)[0];
+			if (!album) throw new Error('Album not found');
+			if (input.source !== 'release' && input.source !== 'release-group') {
+				throw new Error('Unknown candidate');
+			}
+			const image = await findCandidateImage(input.source, input.candidateId);
+			if (!image) throw new Error('This candidate has no image');
+			const coverKey = `covers/${album.id}`;
+			await env.COVERS.put(coverKey, image.body, {
+				httpMetadata: { contentType: image.contentType }
+			});
+			await db
+				.update(albums)
+				.set({ coverKey, coverChosen: true, coverVersion: sql`${albums.coverVersion} + 1` })
+				.where(eq(albums.id, album.id));
 		},
 
 		async login(password) {

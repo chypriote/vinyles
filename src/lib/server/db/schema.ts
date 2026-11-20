@@ -25,6 +25,10 @@ export const albums = sqliteTable(
 		releaseYear: integer('release_year'),
 		/** Cover key in R2. */
 		coverKey: text('cover_key'),
+		/** True once the Owner picked the Cover: a later lookup keeps it. */
+		coverChosen: integer('cover_chosen', { mode: 'boolean' }).notNull().default(false),
+		/** Bumped when the Cover image changes, so that its cached URL changes too. */
+		coverVersion: integer('cover_version').notNull().default(0),
 		musicbrainzId: text('musicbrainz_id')
 	},
 	(t) => [uniqueIndex('album_artist_title_unique').on(t.artistId, t.title)]

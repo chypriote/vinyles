@@ -25,6 +25,29 @@ export interface AlbumSummary {
 	title: string;
 	releaseYear: number | null;
 	coverKey: string | null;
+	/** The Owner picked this Cover. */
+	coverChosen: boolean;
+	/** Changes whenever the Cover image changes. */
+	coverVersion: number;
+}
+
+/** A candidate image for the Cover of an Album. */
+export interface CoverCandidate {
+	/** MusicBrainz id of the release or release group the image belongs to. */
+	id: string;
+	source: 'release' | 'release-group';
+	/** Preview image. */
+	imageUrl: string;
+	/** Only for release-group search hits (Album without match). */
+	artist?: string;
+	title?: string;
+	year?: number | null;
+}
+
+export interface PickCoverInput {
+	albumId: number;
+	candidateId: string;
+	source: CoverCandidate['source'];
 }
 
 export type Acquisition =
@@ -223,6 +246,12 @@ export interface Catalog {
 	// Owner login
 	login(password: string): Promise<LoginResult>;
 	verifyToken(token: string): Promise<boolean>;
+
+	// Cover (Owner)
+	/** Candidate images for the Cover of an Album: loaded on request. */
+	listCoverCandidates(token: string, albumId: number): Promise<CoverCandidate[]>;
+	/** Copies the picked image over the Cover of the Album and marks it Owner-chosen. */
+	pickCover(token: string, input: PickCoverInput): Promise<void>;
 
 	// Records (Owner)
 	addRecord(token: string, input: AddRecordInput): Promise<RecordView>;
