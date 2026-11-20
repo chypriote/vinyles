@@ -7,12 +7,15 @@
 		artist,
 		coverUrl = null,
 		desire,
+		selected,
 		onSelect
 	}: {
 		album: string;
 		artist: string;
 		coverUrl?: string | null;
 		desire?: 1 | 2 | 3;
+		/** Select mode: set to show a checked state. Leave unset otherwise. */
+		selected?: boolean;
 		onSelect?: (el: HTMLElement) => void;
 	} = $props();
 
@@ -28,11 +31,14 @@
 
 <button
 	type="button"
+	aria-pressed={selected}
 	class="group flex min-h-11 w-full cursor-pointer flex-col gap-1 rounded-(--cover-radius) text-start outline-ring focus-visible:outline-3 focus-visible:outline-solid"
 	onclick={(e) => onSelect?.(e.currentTarget)}
 >
 	<span
-		class="block aspect-square w-full overflow-hidden rounded-(--cover-radius) shadow-(--shadow-raised) motion-safe:transition-transform motion-safe:duration-150 motion-safe:ease-out motion-safe:group-hover:-translate-y-[3px] motion-safe:group-hover:-rotate-[1.5deg] motion-safe:group-focus-visible:-translate-y-[3px] motion-safe:group-focus-visible:-rotate-[1.5deg]"
+		class="block aspect-square w-full overflow-hidden rounded-(--cover-radius) shadow-(--shadow-raised) {selected
+			? 'outline-4 outline-offset-2 outline-ring outline-solid'
+			: ''} motion-safe:transition-transform motion-safe:duration-150 motion-safe:ease-out motion-safe:group-hover:-translate-y-[3px] motion-safe:group-hover:-rotate-[1.5deg] motion-safe:group-focus-visible:-translate-y-[3px] motion-safe:group-focus-visible:-rotate-[1.5deg]"
 	>
 		{#if showImage}
 			<img

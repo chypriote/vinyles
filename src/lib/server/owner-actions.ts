@@ -4,6 +4,7 @@ import type {
 	AddRecordInput,
 	AddWishlistItemInput,
 	Catalog,
+	Desire,
 	EditRecordInput,
 	GotItInput,
 	SaveYearsInput
@@ -63,6 +64,10 @@ export const ownerActions = {
 	drop: (event: RequestEvent) =>
 		run<{ id: number }>(event, async (catalog, token, { id }) => {
 			await catalog.drop(token, id);
+		}),
+	setDesire: (event: RequestEvent) =>
+		run<{ ids: number[]; desire: Desire }>(event, async (catalog, token, { ids, desire }) => {
+			await catalog.setDesire(token, ids, desire);
 		}),
 	saveYears: (event: RequestEvent) =>
 		run<SaveYearsInput>(event, async (catalog, token, input) => {
