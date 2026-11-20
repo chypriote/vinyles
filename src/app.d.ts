@@ -5,6 +5,7 @@ declare global {
 			env: Env & {
 				OWNER_PASSWORD: string;
 				JWT_SECRET: string;
+				DISCOGS_TOKEN?: string;
 			};
 		}
 	}

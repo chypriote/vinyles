@@ -33,9 +33,9 @@ export interface AlbumSummary {
 
 /** A candidate image for the Cover of an Album. */
 export interface CoverCandidate {
-	/** MusicBrainz id of the release or release group the image belongs to. */
+	/** MusicBrainz id of the release or release group, or the Discogs image URL. */
 	id: string;
-	source: 'release' | 'release-group';
+	source: 'release' | 'release-group' | 'discogs';
 	/** Preview image. */
 	imageUrl: string;
 	/** Only for release-group search hits. */
