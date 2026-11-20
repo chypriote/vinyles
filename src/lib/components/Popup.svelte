@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { tick, type Snippet } from 'svelte';
+	import type { Snippet } from 'svelte';
 	import { initials, tileClass } from '#lib/tile';
 	import * as Dialog from './ui/dialog/index.js';
 
@@ -15,48 +15,23 @@
 		actions
 	}: {
 		open?: boolean;
+		/** The Cover that opened the Popup. Focus goes back to it on close. */
 		anchor?: HTMLElement | null;
 		album: string;
 		/** Empty for a form Popup: no cover tile and no subtitle. */
 		artist?: string;
 		coverUrl?: string | null;
-		/** A wider Popup, for the cover picker. */
+		/** A wider Popup without a cover, for the cover picker. */
 		wide?: boolean;
 		onDismiss?: () => void;
 		details?: Snippet;
 		actions?: Snippet;
 	} = $props();
 
-	const GUTTER = 16;
-	let content = $state<HTMLElement | null>(null);
-	let pos = $state<{ left: number; top: number } | null>(null);
 	let imgFailed = $state(false);
 	$effect(() => {
 		void coverUrl;
 		imgFailed = false;
-	});
-
-	// Open over the anchor, clamped to the screen. No anchor: centered by CSS.
-	$effect(() => {
-		if (!open || !anchor || !content) {
-			pos = null;
-			return;
-		}
-		const el = content;
-		const a = anchor;
-		tick().then(() => {
-			const r = a.getBoundingClientRect();
-			const w = el.offsetWidth;
-			const h = el.offsetHeight;
-			const vw = window.innerWidth;
-			const vh = window.innerHeight;
-			const left = Math.min(
-				Math.max(r.left + r.width / 2 - w / 2, GUTTER),
-				Math.max(vw - w - GUTTER, GUTTER)
-			);
-			const top = Math.min(Math.max(r.top, GUTTER), Math.max(vh - h - GUTTER, GUTTER));
-			pos = { left, top };
-		});
 	});
 
 	function onOpenChange(next: boolean) {
@@ -66,9 +41,7 @@
 
 <Dialog.Root bind:open {onOpenChange}>
 	<Dialog.Content
-		bind:ref={content}
-		class={wide ? 'max-w-2xl' : undefined}
-		style={pos ? `left:${pos.left}px;top:${pos.top}px;translate:none` : undefined}
+		class={wide || artist ? 'max-w-2xl' : undefined}
 		onCloseAutoFocus={(e: Event) => {
 			if (anchor) {
 				e.preventDefault();
@@ -77,7 +50,7 @@
 		}}
 	>
 		{#if artist}
-			<div class="grid grid-cols-[minmax(0,var(--popup-cover-size))_minmax(0,1fr)] gap-4">
+			<div class="grid grid-cols-[minmax(0,min(var(--popup-cover-size),28vw))_minmax(0,1fr)] gap-4">
 				{#if coverUrl && !imgFailed}
 					<img
 						src={coverUrl}

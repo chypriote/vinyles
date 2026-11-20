@@ -11,7 +11,7 @@
 	const levels = [1, 2, 3] as const;
 </script>
 
-<span class="inline-flex gap-1.5">
+<span class="flex flex-wrap gap-1.5">
 	{#each levels as level (level)}
 		<Button
 			loading={busy === level}
