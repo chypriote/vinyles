@@ -1,13 +1,13 @@
 <script lang="ts">
 	import { tick, type Snippet } from 'svelte';
-	import { initials, tileClass } from '#lib/tile.ts';
+	import { initials, tileClass } from '#lib/tile';
 	import * as Dialog from './ui/dialog/index.js';
 
 	let {
 		open = $bindable(false),
 		anchor = null,
 		album,
-		artist,
+		artist = '',
 		coverUrl = null,
 		onDismiss,
 		details,
@@ -16,7 +16,8 @@
 		open?: boolean;
 		anchor?: HTMLElement | null;
 		album: string;
-		artist: string;
+		/** Empty for a form Popup: no cover tile and no subtitle. */
+		artist?: string;
 		coverUrl?: string | null;
 		onDismiss?: () => void;
 		details?: Snippet;
@@ -27,6 +28,10 @@
 	let content = $state<HTMLElement | null>(null);
 	let pos = $state<{ left: number; top: number } | null>(null);
 	let imgFailed = $state(false);
+	$effect(() => {
+		coverUrl;
+		imgFailed = false;
+	});
 
 	// Open over the anchor, clamped to the screen. No anchor: centered by CSS.
 	$effect(() => {
@@ -66,7 +71,9 @@
 	>
 		<Dialog.Header>
 			<div class="flex items-start gap-4">
-				{#if coverUrl && !imgFailed}
+				{#if !artist}
+					<!-- Form Popup: title only. -->
+				{:else if coverUrl && !imgFailed}
 					<img
 						src={coverUrl}
 						alt=""
@@ -83,7 +90,7 @@
 				{/if}
 				<div class="flex min-w-0 flex-col gap-1">
 					<Dialog.Title>{album}</Dialog.Title>
-					<Dialog.Description>{artist}</Dialog.Description>
+					{#if artist}<Dialog.Description>{artist}</Dialog.Description>{/if}
 				</div>
 			</div>
 		</Dialog.Header>

@@ -350,6 +350,17 @@ describe('Album lookup when an Album is added', () => {
 		expect(object?.httpMetadata?.contentType).toBe('image/jpeg');
 	});
 
+	it('serves the Cover of an Album, and null when it has none', async () => {
+		fakeAlbums.push({ artist: 'Air', title: 'Moon Safari', year: 1998, mbid: 'mb-air', cover: 'cover-bytes' });
+		const withCover = await addRecord({ artist: 'Air', album: 'Moon Safari' });
+		const cover = await catalog.getCover(withCover.album.id);
+		expect(await new Response(cover?.body).text()).toBe('cover-bytes');
+		expect(cover?.contentType).toBe('image/jpeg');
+		const without = await addRecord({ artist: 'Nobody', album: 'Unknown' });
+		expect(await catalog.getCover(without.album.id)).toBeNull();
+		expect(await catalog.getCover(99999)).toBeNull();
+	});
+
 	it('keeps the Album without year or Cover when MusicBrainz has no match', async () => {
 		const record = await addRecord({ artist: 'Nobody', album: 'Unknown' });
 		expect(record.album).toMatchObject({ releaseYear: null, coverKey: null });
