@@ -5,6 +5,7 @@ import type {
 	AddWishlistItemInput,
 	Catalog,
 	EditRecordInput,
+	EditWishlistItemInput,
 	GotItInput,
 	SaveYearsInput
 } from '#lib/server/catalog';
@@ -55,6 +56,10 @@ export const ownerActions = {
 		run<AddWishlistItemInput>(event, async (catalog, token, input) => {
 			const result = await catalog.addWishlistItem(token, input);
 			return { alreadyOwned: result.status === 'already-owned' };
+		}),
+	editWishlistItem: (event: RequestEvent) =>
+		run<EditWishlistItemInput>(event, async (catalog, token, input) => {
+			await catalog.editWishlistItem(token, input);
 		}),
 	gotIt: (event: RequestEvent) =>
 		run<GotItInput>(event, async (catalog, token, input) => {
