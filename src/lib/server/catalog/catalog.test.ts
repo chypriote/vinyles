@@ -673,3 +673,93 @@ describe('Import', () => {
 		});
 	});
 });
+
+// --- Review fixes ------------------------------------------------------------
+
+describe('Owner login without configuration', () => {
+	it('never logs in when OWNER_PASSWORD is missing or empty, even with an empty password', async () => {
+		for (const OWNER_PASSWORD of ['', undefined as unknown as string]) {
+			const unset = createCatalog({ ...env, OWNER_PASSWORD }, { lookupIntervalMs: 0 });
+			expect(await unset.login('')).toEqual({ ok: false, error: 'wrong-password' });
+			expect(await unset.login('anything')).toEqual({ ok: false, error: 'wrong-password' });
+		}
+	});
+
+	it('refuses an empty password even when one is configured', async () => {
+		expect(await catalog.login('')).toEqual({ ok: false, error: 'wrong-password' });
+	});
+
+	it('verifies no token when JWT_SECRET is missing', async () => {
+		const noSecret = createCatalog({ ...env, JWT_SECRET: '' }, { lookupIntervalMs: 0 });
+		expect(await noSecret.verifyToken(token)).toBe(false);
+	});
+});
+
+describe('Impossible dates', () => {
+	it('refuses them on a Record', async () => {
+		for (const date of ['2024-02-31', '2024-13-45']) {
+			await expect(addRecord({ artist: 'A', album: 'B', acquisition: gift(date) })).rejects.toThrow();
+		}
+		expect((await catalog.listRecords()).records).toEqual([]);
+		expect((await addRecord({ artist: 'A', album: 'B', acquisition: gift('2024-02-29') })).acquisition.date).toBe('2024-02-29');
+	});
+
+	it('refuses them on import', async () => {
+		for (const date of ['2024-02-31', '2024-13-45']) {
+			await expect(
+				catalog.importRows(token, {
+					collection: [{ artist: 'A', album: 'B', date, acquisition: { kind: 'gift' } }],
+					wishlist: []
+				})
+			).rejects.toThrow();
+		}
+		expect((await catalog.listRecords()).records).toEqual([]);
+	});
+});
+
+describe('Import twice', () => {
+	const collection = [{ artist: 'A', album: 'B', date: '2024-01-01', acquisition: { kind: 'gift' as const } }];
+
+	it('refuses when the Collection already holds a Record', async () => {
+		await addRecord({ artist: 'X', album: 'Y' });
+		await expect(catalog.importRows(token, { collection, wishlist: [] })).rejects.toThrow('already');
+		expect((await catalog.listRecords()).records).toHaveLength(1);
+	});
+
+	it('refuses when the Wishlist already holds an Item', async () => {
+		await catalog.addWishlistItem(token, { artist: 'X', album: 'Y', desire: 1 });
+		await expect(catalog.importRows(token, { collection, wishlist: [] })).rejects.toThrow('already');
+		expect((await catalog.listRecords()).records).toEqual([]);
+	});
+
+	it('refuses a second import', async () => {
+		await catalog.importRows(token, { collection, wishlist: [] });
+		await expect(catalog.importRows(token, { collection, wishlist: [] })).rejects.toThrow('already');
+		expect((await catalog.listRecords()).records).toHaveLength(1);
+	});
+});
+
+describe('Album lookup when one Album fails', () => {
+	it('skips it, keeps it pending and still looks up the others', async () => {
+		fakeAlbums.push({ artist: 'Daft Punk', title: 'Discovery', year: 2001, mbid: 'm2', cover: null });
+		await catalog.importRows(token, {
+			collection: [
+				{ artist: 'Air', album: 'Moon Safari', date: '2023-01-01', acquisition: { kind: 'gift' } },
+				{ artist: 'Daft Punk', album: 'Discovery', date: '2023-01-01', acquisition: { kind: 'gift' } }
+			],
+			wishlist: []
+		});
+		let moonAttempts = 0;
+		const inner = vi.mocked(globalThis.fetch).getMockImplementation()!;
+		vi.mocked(globalThis.fetch).mockImplementation(async (input, init) => {
+			const query = new URL(String(input)).searchParams.get('query') ?? '';
+			if (query.includes('Moon Safari')) moonAttempts++;
+			if (query.includes('Moon Safari')) return new Response('unavailable', { status: 503 });
+			return inner(input, init);
+		});
+		expect(await catalog.lookupNext(token, { size: 5 })).toEqual({ total: 2, done: 1 });
+		expect(moonAttempts).toBe(1);
+		const discovery = (await catalog.listRecords()).records.find((r) => r.album.title === 'Discovery')!.album;
+		expect(discovery.releaseYear).toBe(2001);
+	});
+});

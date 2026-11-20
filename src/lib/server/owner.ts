@@ -8,11 +8,11 @@ export function ownerToken(cookies: Cookies): string {
 	return cookies.get(OWNER_COOKIE) ?? '';
 }
 
-export function setOwnerToken(cookies: Cookies, token: string) {
+export function setOwnerToken(cookies: Cookies, token: string, secure: boolean) {
 	cookies.set(OWNER_COOKIE, token, {
 		path: '/',
 		httpOnly: true,
-		secure: true,
+		secure,
 		sameSite: 'lax',
 		maxAge: NINETY_DAYS
 	});

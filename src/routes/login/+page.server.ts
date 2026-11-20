@@ -7,11 +7,11 @@ import type { Actions, PageServerLoad } from './$types';
 export const load: PageServerLoad = () => redirect(303, '/');
 
 export const actions: Actions = {
-	default: async ({ request, platform, cookies }) => {
+	default: async ({ request, platform, cookies, url }) => {
 		const password = String((await request.formData()).get('password') ?? '');
 		const result = await catalogFromPlatform(platform).login(password);
 		if (!result.ok) return fail(400, { error: 'Wrong password' });
-		setOwnerToken(cookies, result.token);
+		setOwnerToken(cookies, result.token, url.protocol === 'https:');
 		return { success: true };
 	}
 };

@@ -39,6 +39,13 @@ const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 /** Marks an Album that was looked up on MusicBrainz and has no match. Null means not looked up yet. */
 const NO_MATCH = '';
 
+/** True for a real calendar date written YYYY-MM-DD (2024-02-31 is not one). */
+function isRealDate(value: unknown): boolean {
+	if (typeof value !== 'string' || !ISO_DATE.test(value)) return false;
+	const date = new Date(`${value}T00:00:00Z`);
+	return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+}
+
 const clean = (value: string) => value.trim();
 const cleanOrNull = (value: string | null | undefined) => clean(value ?? '') || null;
 const isCents = (value: unknown): value is number => Number.isInteger(value) && (value as number) >= 0;
@@ -81,7 +88,7 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 	const intervalMs = options.lookupIntervalMs ?? 1000;
 
 	async function owner(token: string) {
-		if (!(await tokenIsValid(token, env.JWT_SECRET))) throw new UnauthorizedError();
+		if (!env.JWT_SECRET || !(await tokenIsValid(token, env.JWT_SECRET))) throw new UnauthorizedError();
 	}
 
 	const run = (statements: unknown[]) =>
@@ -164,7 +171,7 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 	}
 
 	async function checkAcquisition(input: AcquisitionInput) {
-		if (!ISO_DATE.test(input.date ?? '')) throw new Error('Acquisition date must be YYYY-MM-DD');
+		if (!isRealDate(input.date)) throw new Error('Acquisition date must be YYYY-MM-DD');
 		if (input.kind === 'purchase') {
 			if (!(await findStore(input.storeId))) throw new Error('A Purchase needs an existing Store');
 			if (!isCents(input.priceCents)) throw new Error('A Purchase needs a price in euro cents');
@@ -293,11 +300,13 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 		},
 
 		async login(password) {
-			if (!(await passwordMatches(password, env.OWNER_PASSWORD))) return { ok: false, error: 'wrong-password' };
+			if (!env.OWNER_PASSWORD || !env.JWT_SECRET || !password || !(await passwordMatches(password, env.OWNER_PASSWORD))) {
+				return { ok: false, error: 'wrong-password' };
+			}
 			return { ok: true, token: await issueToken(env.JWT_SECRET) };
 		},
 
-		verifyToken: (token) => tokenIsValid(token, env.JWT_SECRET),
+		verifyToken: async (token) => !!env.JWT_SECRET && (await tokenIsValid(token, env.JWT_SECRET)),
 
 		async addRecord(token, input) {
 			await owner(token);
@@ -380,9 +389,13 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 
 		async importRows(token, input) {
 			await owner(token);
+			const [{ held }] = await db
+				.select({ held: sql<number>`(SELECT count(*) FROM ${records}) + (SELECT count(*) FROM ${wishlistItems})` })
+				.from(sql`(SELECT 1)`);
+			if (held > 0) throw new Error('The Collection or Wishlist already has entries');
 			const collection = input.collection.map((row) => {
 				const date = row.date;
-				if (!ISO_DATE.test(date ?? '')) throw new Error(`Bad date for ${row.artist} - ${row.album}`);
+				if (!isRealDate(date)) throw new Error(`Bad date for ${row.artist} - ${row.album}`);
 				const acquisition = row.acquisition;
 				if (acquisition.kind === 'purchase') {
 					required(acquisition.store, 'Store');
@@ -477,7 +490,13 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 				.where(sql`${albums.musicbrainzId} IS NULL`)
 				.orderBy(albums.id)
 				.limit(size);
-			for (const album of pending) await lookUpAlbum(album.id, album.artist, album.title);
+			for (const album of pending) {
+				try {
+					await lookUpAlbum(album.id, album.artist, album.title);
+				} catch {
+					// Stays pending: skipped for this batch, retried by a later one.
+				}
+			}
 			return progress();
 		},
 
