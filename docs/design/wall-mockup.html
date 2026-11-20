@@ -1,0 +1,295 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Vinyles Wall</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;700;800&display=swap">
+<style>
+/* Layout concept: a packed wall of rounded covers under a sticky bar of pills and colored chips. Happy, round, still dense. */
+:root {
+  --bg: #fff3df;
+  --surface: #ffffff;
+  --ink: #1a2f6b;
+  --muted: #6b7899;
+  --line: #f0dfc2;
+  --accent: #ff5a4e;
+  --on-accent: #ffffff;
+  --sun: #ffc83d;
+  --mint: #34d3a0;
+  --sky: #5aa9ff;
+  --font: "Nunito", ui-rounded, "SF Pro Rounded", system-ui, sans-serif;
+  --cols: 3;
+  --gap: 8px;
+}
+@media (min-width: 640px) { :root { --cols: 5; } }
+@media (min-width: 900px) { :root { --cols: 7; } }
+@media (min-width: 1200px) { :root { --cols: 8; } }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #101a3a; --surface: #19254d; --ink: #fff3e2; --muted: #a3b1d9; --line: #2a3a6e;
+    --accent: #ff6f63; --on-accent: #101a3a; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #101a3a; --surface: #19254d; --ink: #fff3e2; --muted: #a3b1d9; --line: #2a3a6e;
+  --accent: #ff6f63; --on-accent: #101a3a; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--font); font-weight: 500;
+  font-size: 14px; line-height: 1.35; font-variant-numeric: tabular-nums;
+  margin: 0;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 0 48px;
+}
+body::before {
+  content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px);
+  background: var(--bg); z-index: 20;
+}
+header.bar {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 10;
+  background: var(--bg); padding-block: 12px 10px; display: grid; gap: 10px;
+}
+.row { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; justify-content: space-between; }
+h1 { margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.02em; }
+h1 span { color: var(--accent); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font-weight: 800; font-size: 12px; padding: 4px 10px; border-radius: 999px; color: #1a2f6b; }
+.chip.sun { background: var(--sun); }
+.chip.mint { background: var(--mint); }
+.chip.sky { background: var(--sky); }
+.tabs { display: inline-flex; background: var(--surface); border-radius: 999px; padding: 4px; gap: 2px; box-shadow: 0 1px 0 var(--line); }
+.tab {
+  font: inherit; font-weight: 800; background: none; color: var(--muted);
+  border: 0; border-radius: 999px; padding: 7px 16px; cursor: pointer;
+}
+.tab[aria-selected="true"] { background: var(--accent); color: var(--on-accent); }
+.controls { display: flex; flex-wrap: wrap; gap: 8px; }
+.controls > * { min-width: 0; }
+input, select {
+  font: inherit; font-size: 13px; font-weight: 700; color: var(--ink); background: var(--surface);
+  border: 2px solid transparent; border-radius: 999px; padding: 0 14px; height: 38px;
+  box-shadow: 0 1px 0 var(--line);
+}
+input::placeholder { color: var(--muted); font-weight: 500; }
+input[type=search] { flex: 1 1 150px; }
+select { flex: 0 1 auto; max-width: 100%; }
+input:focus-visible, select:focus-visible, button:focus-visible { outline: 3px solid var(--sky); outline-offset: 2px; }
+.desire { display: flex; gap: 6px; }
+.desire button {
+  font: inherit; font-weight: 800; font-size: 12px; height: 38px; padding: 0 12px; border-radius: 999px;
+  background: var(--surface); color: var(--ink); border: 2px solid transparent; cursor: pointer; box-shadow: 0 1px 0 var(--line);
+  letter-spacing: 1px;
+}
+.desire button[aria-pressed="true"] { background: var(--sun); color: #1a2f6b; }
+.note { margin: 4px 0 6px; font-size: 12px; color: var(--muted); }
+.wall {
+  display: grid; grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); gap: 12px var(--gap);
+  margin-top: 8px;
+}
+.rec { background: none; border: 0; padding: 0; text-align: left; font: inherit; color: inherit; cursor: pointer; display: block; min-width: 0; border-radius: 14px; }
+.cover { aspect-ratio: 1; width: 100%; display: block; background: var(--line); border-radius: 14px; overflow: hidden; box-shadow: 0 3px 0 rgb(26 47 107 / .12); }
+.cover svg { width: 100%; height: 100%; display: block; }
+.cap { padding: 6px 3px 0; display: grid; }
+.cap .a { font-weight: 800; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cap .y { font-size: 11px; color: var(--muted); display: flex; justify-content: space-between; gap: 4px; min-width: 0; }
+.cap .nm { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.dots { color: var(--accent); letter-spacing: 1px; }
+@media (prefers-reduced-motion: no-preference) {
+  .rec .cover { transition: transform .12s ease; }
+  .rec:hover .cover, .rec:focus-visible .cover { transform: translateY(-3px) rotate(-1.5deg); }
+}
+.rec:focus-visible { outline: 3px solid var(--sky); outline-offset: 3px; }
+.empty { padding: 40px 0; color: var(--muted); }
+#sheet { position: fixed; inset: 0; z-index: 30; display: none; background: rgb(10 18 50 / .75); }
+#sheet.open { display: block; }
+.card {
+  position: absolute; background: var(--surface); width: min(420px, calc(100vw - 24px)); max-height: calc(100% - 24px); overflow: auto;
+  border-radius: 28px; padding: 18px; box-shadow: 0 10px 0 rgb(26 47 107 / .12), 0 14px 34px rgb(26 47 107 / .3);
+  display: grid; grid-template-columns: minmax(0, 150px) minmax(0, 1fr); gap: 16px;
+}
+.card .cover { border-radius: 16px; }
+.card .x { position: absolute; top: 8px; right: 8px; width: 30px; height: 30px; border-radius: 50%; border: 0; background: var(--bg); color: var(--ink); font-size: 14px; font-weight: 800; cursor: pointer; line-height: 1; }
+.card h2 { margin: 0 0 2px; font-size: 22px; font-weight: 800; letter-spacing: -0.01em; text-wrap: balance; padding-right: 26px; }
+.card .art { color: var(--muted); margin: 0 0 10px; font-weight: 700; }
+dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; font-size: 15px; }
+dt { color: var(--muted); }
+dd { margin: 0; font-weight: 800; overflow-wrap: anywhere; }
+.card .actions { grid-column: 1 / -1; display: flex; gap: 8px; flex-wrap: wrap; }
+.btn { font: inherit; font-weight: 800; font-size: 13px; height: 38px; padding: 0 18px; border: 0; background: var(--bg); color: var(--ink); cursor: pointer; border-radius: 999px; }
+.btn.primary { background: var(--mint); color: #1a2f6b; }
+footer { margin-top: 24px; font-size: 12px; color: var(--muted); }
+</style>
+
+<header class="bar">
+  <div class="row">
+    <h1>Vinyles<span>.</span></h1>
+    <div class="chips" id="stats" aria-live="polite"></div>
+  </div>
+  <div class="row">
+    <div class="tabs" role="tablist" aria-label="Section">
+      <button class="tab" role="tab" id="tab-c" aria-selected="true" data-tab="collection">Collection</button>
+      <button class="tab" role="tab" id="tab-w" aria-selected="false" data-tab="wishlist">Wishlist</button>
+    </div>
+  </div>
+  <div class="controls">
+    <input type="search" id="q" placeholder="Search artist or album" aria-label="Search artist or album">
+    <select id="artist" aria-label="Filter by artist"></select>
+    <select id="sort" aria-label="Sort">
+      <option value="artist">Sort: artist</option>
+      <option value="album">Sort: album</option>
+      <option value="year">Sort: release year</option>
+      <option value="acq">Sort: acquired</option>
+    </select>
+    <div class="desire" id="desire" hidden role="group" aria-label="Desire filter">
+      <button data-d="3" aria-pressed="false">●●●</button>
+      <button data-d="2" aria-pressed="false">●●</button>
+      <button data-d="1" aria-pressed="false">●</button>
+    </div>
+  </div>
+</header>
+
+<p class="note">Mockup with example records. Covers are generated tiles; the real app fetches them at the first import.</p>
+<main class="wall" id="wall"></main>
+<footer>Tap a cover for details.</footer>
+
+<div id="sheet" role="dialog" aria-modal="true" aria-label="Record details"><div class="card" id="card"></div></div>
+
+<script>
+// Example data. Fields mirror the glossary: Record (Acquisition: Purchase or Gift) and Wishlist Item (Desire, Price Quotes).
+const C = [
+  ["Pink Floyd","The Dark Side of the Moon",1973,"Purchase","Official Store",24.99,"2023-03-11","Clear"],
+  ["Daft Punk","Random Access Memories",2013,"Purchase","Fnac",34.9,"2022-11-02","2LP"],
+  ["Radiohead","OK Computer",1997,"Gift",null,null,"2021-12-25","From Marie"],
+  ["Nirvana","Nevermind",1991,"Purchase","Discogs",21.5,"2020-06-14",""],
+  ["Miles Davis","Kind of Blue",1959,"Purchase","Rough Trade",19.0,"2019-09-30","Mono"],
+  ["Massive Attack","Mezzanine",1998,"Purchase","Amazon",27.0,"2021-02-08",""],
+  ["Gorillaz","Demon Days",2005,"Gift",null,null,"2022-12-25","From Paul"],
+  ["Arctic Monkeys","AM",2013,"Purchase","Official Store",18.99,"2018-10-19","Black"],
+  ["Portishead","Dummy",1994,"Purchase","Discogs",29.0,"2020-01-22",""],
+  ["The Cure","Disintegration",1989,"Purchase","Fnac",26.5,"2023-05-06","2LP"],
+  ["Björk","Homogenic",1997,"Purchase","Rough Trade",23.0,"2022-04-17",""],
+  ["Air","Moon Safari",1998,"Purchase","Amazon",22.9,"2019-03-03","White"],
+  ["Bowie","Low",1977,"Purchase","Discogs",31.0,"2021-08-21",""],
+  ["Kraftwerk","Computer World",1981,"Purchase","Fnac",25.0,"2020-11-30",""],
+  ["Joy Division","Unknown Pleasures",1979,"Gift",null,null,"2020-12-25","From Léa"],
+  ["Tame Impala","Currents",2015,"Purchase","Official Store",28.0,"2019-07-12","Purple"],
+  ["LCD Soundsystem","Sound of Silver",2007,"Purchase","Discogs",33.0,"2022-09-09",""],
+  ["Beck","Sea Change",2002,"Purchase","Amazon",20.0,"2018-05-27",""],
+  ["The Strokes","Is This It",2001,"Purchase","Fnac",19.9,"2018-02-14",""],
+  ["Boards of Canada","Music Has the Right to Children",1998,"Purchase","Rough Trade",36.0,"2023-01-19","2LP"],
+  ["Fleetwood Mac","Rumours",1977,"Gift",null,null,"2019-12-25","From Mum"],
+  ["Prince","Purple Rain",1984,"Purchase","Amazon",24.0,"2021-06-01","Purple"],
+  ["Talking Heads","Remain in Light",1980,"Purchase","Discogs",27.5,"2022-02-26",""],
+  ["Stereolab","Dots and Loops",1997,"Purchase","Rough Trade",30.0,"2023-08-12",""],
+  ["Nina Simone","Pastel Blues",1965,"Purchase","Fnac",17.5,"2019-04-20","Mono"],
+  ["Burial","Untrue",2007,"Purchase","Official Store",26.0,"2020-08-08","2LP"],
+  ["Pixies","Doolittle",1989,"Purchase","Amazon",19.0,"2018-12-01",""],
+  ["Aphex Twin","Selected Ambient Works 85-92",1992,"Purchase","Discogs",32.0,"2021-10-10","2LP"]
+];
+const W = [
+  ["Cocteau Twins","Heaven or Las Vegas",1990,3,[["Rough Trade",29],["Discogs",34]],"Original press"],
+  ["Slowdive","Souvlaki",1993,3,[["Official Store",26.5]],""],
+  ["Can","Tago Mago",1971,2,[["Discogs",38]],"2LP"],
+  ["My Bloody Valentine","Loveless",1991,3,[["Rough Trade",27]],""],
+  ["Sade","Love Deluxe",1992,1,[["Fnac",24]],""],
+  ["Thom Yorke","The Eraser",2006,2,[["Amazon",22]],""],
+  ["Brian Eno","Ambient 1: Music for Airports",1978,2,[["Fnac",21]],""],
+  ["Grouper","Dragging a Dead Deer Up a Hill",2008,1,[["Discogs",30]],""],
+  ["Talk Talk","Spirit of Eden",1988,3,[["Rough Trade",28],["Fnac",31]],""],
+  ["Radiohead","Kid A",2000,2,[["Official Store",29.9]],"2LP"],
+  ["Daft Punk","Discovery",2001,1,[["Amazon",33]],""],
+  ["Aphex Twin","Drukqs",2001,1,[["Discogs",35]],""]
+];
+const PAL = ["#ff5a4e","#ffc83d","#34d3a0","#5aa9ff","#e84a8a","#ff8fb3","#ff9a3c","#1a2f6b","#2fc4d6","#8fd14f"];
+const LIGHT = new Set(["#ffc83d","#34d3a0","#ff8fb3","#2fc4d6","#8fd14f","#ff9a3c","#e84a8a"]);
+function hash(s){let h=2166136261;for(const c of s){h^=c.charCodeAt(0);h=Math.imul(h,16777619)}return h>>>0}
+function cover(artist,album){
+  const h=hash(artist+album), p=i=>PAL[(h>>(i*3))%PAL.length];
+  const a=p(0); let b=p(1), c=p(2);
+  if(b===a) b=p(3); if(c===a||c===b) c=PAL[(h>>9)%PAL.length]===a?"#fff3df":PAL[(h>>9)%PAL.length];
+  const kind=h%5;
+  const ini=artist.split(/\s+/).map(w=>w[0]).join("").slice(0,2).toUpperCase();
+  let g="";
+  if(kind===0) g=`<circle cx="50" cy="50" r="32" fill="${b}"/><circle cx="50" cy="50" r="9" fill="${c}"/>`;
+  else if(kind===1) g=`<circle cx="50" cy="104" r="48" fill="${b}"/><circle cx="50" cy="52" r="20" fill="${c}"/>`;
+  else if(kind===2) g=[0,1,2,3].map(i=>`<circle cx="${14+i*24}" cy="${i%2?36:62}" r="14" fill="${i%2?b:c}"/>`).join("");
+  else if(kind===3) g=`<path d="M0 70 Q25 40 50 70 T100 70 V100 H0Z" fill="${b}"/><circle cx="72" cy="28" r="14" fill="${c}"/>`;
+  else g=`<rect x="16" y="16" width="68" height="68" rx="22" fill="${b}"/><circle cx="50" cy="50" r="17" fill="${c}"/>`;
+  const txt=LIGHT.has(a)?"#1a2f6b":"#fff8ee";
+  return `<svg viewBox="0 0 100 100" aria-hidden="true"><rect width="100" height="100" fill="${a}"/>${g}<text x="7" y="93" font-family="Nunito, sans-serif" font-size="12" font-weight="800" fill="${txt}">${ini}</text></svg>`;
+}
+const eur=n=>n.toFixed(2).replace(".",",")+" €";
+let tab="collection", dMin=0;
+const $=id=>document.getElementById(id);
+const q=$("q"), artistSel=$("artist"), sortSel=$("sort");
+
+function items(){
+  const src = tab==="collection" ? C : W;
+  const term=q.value.trim().toLowerCase();
+  let out=src.filter(r=>(!term||(r[0]+" "+r[1]).toLowerCase().includes(term)) && (!artistSel.value||r[0]===artistSel.value));
+  if(tab==="wishlist" && dMin) out=out.filter(r=>r[3]===dMin);
+  const cmp={artist:(a,b)=>a[0].localeCompare(b[0])||a[2]-b[2],album:(a,b)=>a[1].localeCompare(b[1]),year:(a,b)=>a[2]-b[2],acq:(a,b)=>(b[6]||"").localeCompare(a[6]||"")}[sortSel.value];
+  return out.sort(cmp);
+}
+function fillArtists(){
+  const src = tab==="collection" ? C : W;
+  const names=[...new Set(src.map(r=>r[0]))].sort((a,b)=>a.localeCompare(b));
+  const cur=artistSel.value;
+  artistSel.innerHTML=`<option value="">All artists (${names.length})</option>`+names.map(n=>`<option>${n}</option>`).join("");
+  if(names.includes(cur)) artistSel.value=cur;
+}
+function render(){
+  const list=items(), w=$("wall");
+  if(tab==="collection"){
+    const total=C.reduce((s,r)=>s+(r[5]||0),0);
+    $("stats").innerHTML=`<span class="chip sun">${C.length} records</span><span class="chip mint">${eur(total)} spent</span>`;
+  } else $("stats").innerHTML=`<span class="chip sky">${W.length} wishlist items</span>`;
+  $("desire").hidden = tab!=="wishlist";
+  sortSel.querySelector('[value="acq"]').hidden = tab!=="collection";
+  if(tab!=="collection" && sortSel.value==="acq") sortSel.value="artist";
+  w.innerHTML = list.length ? list.map(r=>{
+    const idx=(tab==="collection"?C:W).indexOf(r);
+    const extra = tab==="collection" ? "" : `<span class="dots" title="Desire ${r[3]} of 3">${"●".repeat(r[3])}</span>`;
+    return `<button class="rec" data-i="${idx}" aria-label="${r[0]}, ${r[1]}, ${r[2]}">
+      <span class="cover">${cover(r[0],r[1])}</span>
+      <span class="cap"><span class="a">${r[1]}</span><span class="y"><span class="nm">${r[0]}</span>${extra}</span></span></button>`;
+  }).join("") : `<p class="empty">No match. Clear the search or the artist filter.</p>`;
+}
+function open(i,el){
+  const r=(tab==="collection"?C:W)[i], card=$("card");
+  let rows, actions;
+  if(tab==="collection"){
+    if(r[3]==="Gift") rows=`<dt>Year</dt><dd>${r[2]}</dd><dt>Acquired</dt><dd>Gift · ${r[6]}</dd><dt>From</dt><dd>${r[7].replace("From ","")}</dd>`;
+    else rows=`<dt>Year</dt><dd>${r[2]}</dd><dt>Variant</dt><dd>${r[7]||"Standard"}</dd><dt>Acquired</dt><dd>Purchase · ${r[6]}</dd><dt>Store</dt><dd>${r[4]}</dd><dt>Price</dt><dd>${eur(r[5])}</dd>`;
+    actions="";
+  } else {
+    rows=`<dt>Year</dt><dd>${r[2]}</dd><dt>Variant</dt><dd>${r[5]||"Any"}</dd><dt>Desire</dt><dd class="dots">${"●".repeat(r[3])}<span style="color:var(--muted)"> ${r[3]}/3</span></dd>`
+      + r[4].map(([s,p])=>`<dt>${s}</dt><dd>${eur(p)}</dd>`).join("");
+    actions=`<button class="btn primary" data-close>Got it</button><button class="btn" data-close>Drop</button>`;
+  }
+  card.innerHTML=`<button class="x" data-close aria-label="Close">✕</button><div class="cover">${cover(r[0],r[1])}</div><div><h2>${r[1]}</h2><p class="art">${r[0]}</p><dl>${rows}</dl></div>${actions?`<div class="actions">${actions}</div>`:""}`;
+  $("sheet").classList.add("open");
+  const rc=el.getBoundingClientRect(), w=card.offsetWidth, h=card.offsetHeight;
+  const clamp=(v,lo,hi)=>Math.max(lo,Math.min(v,hi));
+  card.style.left=clamp(rc.left+rc.width/2-w/2,12,innerWidth-w-12)+"px";
+  card.style.top=clamp(rc.top,12,innerHeight-h-12)+"px";
+  card.querySelector(".x").focus();
+}
+function close(){ $("sheet").classList.remove("open"); }
+$("wall").addEventListener("click",e=>{const b=e.target.closest(".rec"); if(b) open(+b.dataset.i,b)});
+$("sheet").addEventListener("click",e=>{ if(e.target.id==="sheet"||e.target.closest("[data-close]")) close() });
+document.addEventListener("keydown",e=>{ if(e.key==="Escape") close() });
+document.querySelectorAll(".tab").forEach(b=>b.addEventListener("click",()=>{
+  tab=b.dataset.tab; document.querySelectorAll(".tab").forEach(t=>t.setAttribute("aria-selected",t===b));
+  artistSel.value=""; q.value=""; dMin=0; document.querySelectorAll("#desire button").forEach(x=>x.setAttribute("aria-pressed","false"));
+  fillArtists(); render();
+}));
+document.querySelectorAll("#desire button").forEach(b=>b.addEventListener("click",()=>{
+  const d=+b.dataset.d; dMin = dMin===d?0:d;
+  document.querySelectorAll("#desire button").forEach(x=>x.setAttribute("aria-pressed",String(+x.dataset.d===dMin)));
+  render();
+}));
+[q,artistSel,sortSel].forEach(el=>el.addEventListener("input",render));
+fillArtists(); render();
+</script>
