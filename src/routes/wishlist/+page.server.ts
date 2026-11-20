@@ -14,5 +14,7 @@ export const actions: Actions = {
 	gotIt: ownerActions.gotIt,
 	drop: ownerActions.drop,
 	setDesire: ownerActions.setDesire,
-	refreshPrices: ownerActions.refreshPrices
+	refreshPrices: ownerActions.refreshPrices,
+	setProductLink: ownerActions.setProductLink,
+	removeProductLink: ownerActions.removeProductLink
 };

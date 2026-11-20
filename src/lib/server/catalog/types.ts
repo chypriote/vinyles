@@ -74,12 +74,19 @@ export interface PriceQuote {
 	url?: string;
 }
 
+/** A page of a Store that the Refresh reads for one Wishlist Item, instead of searching the Store. */
+export interface ProductLink {
+	store: Store;
+	url: string;
+}
+
 export interface WishlistItemView {
 	id: number;
 	album: AlbumSummary;
 	variant: string | null;
 	desire: Desire;
 	priceQuotes: PriceQuote[];
+	productLinks: ProductLink[];
 }
 
 export interface CoverImage {
@@ -174,6 +181,13 @@ export interface EditWishlistItemInput {
 
 export type AddWishlistItemResult =
 	{ status: 'added'; item: WishlistItemView } | { status: 'already-owned'; records: RecordView[] };
+
+export interface SetProductLinkInput {
+	wishlistItemId: number;
+	storeId: number;
+	/** An http(s) address. Replaces the link of that Store. */
+	url: string;
+}
 
 export interface GotItInput {
 	wishlistItemId: number;
@@ -324,8 +338,14 @@ export interface Catalog {
 	/**
 	 * Reads the price of the Wishlist Item at every automatic Store and replaces its Price Quotes there.
 	 * A Store with no matching product loses its quote. A Store that cannot be read keeps it.
+	 * A Store with a Product Link is read through that link, not searched.
 	 */
 	refreshPrices(token: string, wishlistItemId: number): Promise<WishlistItemView>;
+	setProductLink(token: string, input: SetProductLinkInput): Promise<WishlistItemView>;
+	removeProductLink(
+		token: string,
+		input: { wishlistItemId: number; storeId: number }
+	): Promise<WishlistItemView>;
 
 	// Import (Owner, once)
 	importRows(token: string, input: ImportRowsInput): Promise<ImportRowsResult>;

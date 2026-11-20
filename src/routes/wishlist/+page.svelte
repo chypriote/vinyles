@@ -16,6 +16,7 @@
 	import EmptyState from '#lib/components/EmptyState.svelte';
 	import AddAction from '#lib/components/AddAction.svelte';
 	import LoginAction from '#lib/components/LoginAction.svelte';
+	import ProductLinks from '#lib/components/ProductLinks.svelte';
 	import WishlistEditForm from '#lib/components/WishlistEditForm.svelte';
 	import GotItForm from '#lib/components/GotItForm.svelte';
 	import Popup from '#lib/components/Popup.svelte';
@@ -90,6 +91,7 @@
 	let gotItOpen = $state(false);
 	let editOpen = $state(false);
 	let coverOpen = $state(false);
+	let linksOpen = $state(false);
 
 	let dropping = $state(false);
 	let refreshing = $state(false);
@@ -138,6 +140,7 @@
 			gotItOpen = false;
 			editOpen = false;
 			coverOpen = false;
+			linksOpen = false;
 			selectedId = null;
 		}
 	});
@@ -297,6 +300,14 @@
 					Change cover
 				</Button>
 				<Button loading={refreshing} onclick={refreshPrices}>Refresh prices</Button>
+				<Button
+					onclick={() => {
+						open = false;
+						linksOpen = true;
+					}}
+				>
+					Product links
+				</Button>
 				<Button loading={dropping} onclick={drop}>Drop</Button>
 				{#if refreshError}
 					<p class="text-sm font-extrabold text-destructive" role="alert">{refreshError}</p>
@@ -328,6 +339,21 @@
 					item={selected}
 					artists={data.artists}
 					onDone={() => (editOpen = false)}
+				/>
+			{/if}
+		{/snippet}
+	</Popup>
+{/if}
+
+{#if data.isOwner && selected}
+	<Popup bind:open={linksOpen} album={`Links for ${selected.album.title}`}>
+		{#snippet details()}
+			{#if selected}
+				<ProductLinks
+					itemId={selected.id}
+					links={selected.productLinks}
+					stores={data.stores}
+					onDone={() => (linksOpen = false)}
 				/>
 			{/if}
 		{/snippet}

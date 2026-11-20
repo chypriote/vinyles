@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cheapestMatch, readOffers } from './store-prices';
+import { cheapestMatch, readOffers, readPagePrice } from './store-prices';
 
 const page = (...blocks: unknown[]) =>
 	blocks.map((b) => `<script type="application/ld+json">${JSON.stringify(b)}</script>`).join('');
@@ -71,5 +71,30 @@ describe('cheapestMatch', () => {
 	it('finds nothing for another Album', () => {
 		expect(cheapestMatch(offers, 'Air', '10 000 Hz Legend')).toBeNull();
 		expect(cheapestMatch(offers, 'Daft Punk', 'Talkie Walkie')).toBeNull();
+	});
+});
+
+describe('readPagePrice', () => {
+	it('prefers the structured data, and takes the lowest offer', () => {
+		const html = page({
+			'@type': 'Product',
+			name: 'X',
+			offers: [{ price: '30' }, { price: '25,5' }]
+		});
+		expect(readPagePrice(html, 'https://shop.test/p')).toBe(2550);
+	});
+
+	it('falls back to the price meta tags, in euros only', () => {
+		const meta = (currency: string) =>
+			`<meta property="product:price:amount" content="19,90"><meta property="product:price:currency" content="${currency}">`;
+		expect(readPagePrice(meta('EUR'), 'https://shop.test/p')).toBe(1990);
+		expect(readPagePrice(meta('USD'), 'https://shop.test/p')).toBeNull();
+		expect(readPagePrice('<meta itemprop="price" content="12.00">', 'https://shop.test/p')).toBe(
+			1200
+		);
+	});
+
+	it('finds nothing on a page without a price', () => {
+		expect(readPagePrice('<html>Sold out</html>', 'https://shop.test/p')).toBeNull();
 	});
 });

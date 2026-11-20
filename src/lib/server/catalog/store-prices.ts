@@ -55,15 +55,17 @@ function toCents(price: Json): number | null {
 	return match ? Math.round(Number(match[0]) * 100) : null;
 }
 
+/** The lowest euro price among the offers of a product. */
 function offerPrice(offers: Json): number | null {
+	const prices: number[] = [];
 	for (const offer of Array.isArray(offers) ? offers : [offers]) {
 		if (!isObject(offer)) continue;
 		const currency = offer.priceCurrency;
 		if (currency !== undefined && currency !== 'EUR') continue;
 		const cents = toCents(offer.price ?? offer.lowPrice);
-		if (cents !== null && cents > 0) return cents;
+		if (cents !== null && cents > 0) prices.push(cents);
 	}
-	return null;
+	return prices.length ? Math.min(...prices) : null;
 }
 
 function decode(text: string) {
@@ -126,4 +128,30 @@ export function cheapestMatch(offers: Offer[], artist: string, album: string): O
 		return name.includes(words(artist)) && name.includes(words(album));
 	});
 	return matches.sort((a, b) => a.priceCents - b.priceCents)[0] ?? null;
+}
+
+const META = /<meta\s[^>]*>/gi;
+
+function attribute(tag: string, name: string) {
+	return tag.match(new RegExp(`\\s${name}\\s*=\\s*["']([^"']*)["']`, 'i'))?.[1];
+}
+
+/** The price of the one product on a page: structured data first, then the price meta tags. */
+export function readPagePrice(html: string, pageUrl: string): number | null {
+	const offers = readOffers(html, pageUrl).offers;
+	if (offers.length) return Math.min(...offers.map((o) => o.priceCents));
+	let amount: number | null = null;
+	let currency: string | undefined;
+	for (const [tag] of html.matchAll(META)) {
+		const key = (attribute(tag, 'property') ?? attribute(tag, 'itemprop') ?? '').toLowerCase();
+		const content = attribute(tag, 'content');
+		if (key === 'product:price:amount' || key === 'og:price:amount' || key === 'price') {
+			amount ??= toCents(content);
+		} else if (key === 'product:price:currency' || key === 'og:price:currency') {
+			currency = content;
+		}
+	}
+	return amount !== null && amount > 0 && (currency === undefined || currency === 'EUR')
+		? amount
+		: null;
 }

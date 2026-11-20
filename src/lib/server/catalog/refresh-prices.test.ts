@@ -126,3 +126,96 @@ describe('Refresh prices', () => {
 		]);
 	});
 });
+
+describe('Product Link', () => {
+	const link = (storeId: number, itemId: number, url: string) =>
+		catalog.setProductLink(token, { wishlistItemId: itemId, storeId, url });
+	const storeId = async (name: string) =>
+		(await catalog.listStores()).find((s) => s.name === name)!.id;
+
+	it('is read instead of searching the Store, and the quote links to it', async () => {
+		const item = await addItem();
+		const fnac = (await catalog.addStore(token, { name: 'Fnac' })).id;
+		await link(fnac, item.id, 'https://www.fnac.com/a1/Air-Talkie-Walkie');
+		pages.set(host('Fnac'), html({ name: 'Air - Talkie Walkie', price: '99' }));
+		pages.set('www.fnac.com', html({ name: 'whatever', price: '26,5' }));
+		const refreshed = await catalog.refreshPrices(token, item.id);
+		expect(requested.map((u) => u.pathname)).toContain('/a1/Air-Talkie-Walkie');
+		expect(
+			requested.filter((u) => u.host === host('Fnac') && u.pathname.includes('Search'))
+		).toEqual([]);
+		expect(refreshed.priceQuotes).toMatchObject([
+			{
+				store: { name: 'Fnac' },
+				priceCents: 2650,
+				url: 'https://www.fnac.com/a1/Air-Talkie-Walkie'
+			}
+		]);
+	});
+
+	it('works for a Store that is not automatic, and reads the price meta tags', async () => {
+		const item = await addItem();
+		const shop = (await catalog.addStore(token, { name: 'Local shop' })).id;
+		await link(shop, item.id, 'https://local.test/p/1');
+		pages.set('local.test', new Response('<meta property="og:price:amount" content="31.00">'));
+		const refreshed = await catalog.refreshPrices(token, item.id);
+		expect(refreshed.priceQuotes.map((q) => [q.store.name, q.priceCents])).toEqual([
+			['Local shop', 3100]
+		]);
+	});
+
+	it('keeps the old quote when the linked page cannot be read, and never deletes it', async () => {
+		const item = await addItem();
+		const shop = (await catalog.addStore(token, { name: 'Local shop' })).id;
+		await link(shop, item.id, 'https://local.test/p/1');
+		pages.set('local.test', new Response('<meta property="og:price:amount" content="31.00">'));
+		await catalog.refreshPrices(token, item.id);
+		pages.set('local.test', new Response('<html>Sold out</html>'));
+		const refreshed = await catalog.refreshPrices(token, item.id);
+		expect(refreshed.priceQuotes.map((q) => q.priceCents)).toEqual([3100]);
+	});
+
+	it('is one per Store: a new link replaces the old one, and it can be removed', async () => {
+		const item = await addItem();
+		const fnac = await storeId('Official Store');
+		await link(fnac, item.id, 'https://one.test/a');
+		const replaced = await link(fnac, item.id, ' https://two.test/b ');
+		expect(replaced.productLinks).toEqual([
+			{ store: { id: fnac, name: 'Official Store' }, url: 'https://two.test/b' }
+		]);
+		const removed = await catalog.removeProductLink(token, {
+			wishlistItemId: item.id,
+			storeId: fnac
+		});
+		expect(removed.productLinks).toEqual([]);
+	});
+
+	it('refuses a bad address, an unknown Store or Item, and a Viewer', async () => {
+		const item = await addItem();
+		const store = await storeId('Official Store');
+		await expect(link(store, item.id, 'ftp://x.test/a')).rejects.toThrow('http');
+		await expect(link(store, item.id, 'not a link')).rejects.toThrow('http');
+		await expect(link(9999, item.id, 'https://x.test/a')).rejects.toThrow('Store not found');
+		await expect(link(store, 9999, 'https://x.test/a')).rejects.toThrow('not found');
+		await expect(
+			catalog.setProductLink('nope', {
+				wishlistItemId: item.id,
+				storeId: store,
+				url: 'https://x.test'
+			})
+		).rejects.toMatchObject({ name: 'UnauthorizedError' });
+		await expect(
+			catalog.removeProductLink('nope', { wishlistItemId: item.id, storeId: store })
+		).rejects.toMatchObject({ name: 'UnauthorizedError' });
+	});
+
+	it('goes away with the Wishlist Item', async () => {
+		const item = await addItem();
+		await link(await storeId('Official Store'), item.id, 'https://x.test/a');
+		await catalog.drop(token, item.id);
+		const rows = await env.DB.prepare('SELECT COUNT(*) AS n FROM product_link').first<{
+			n: number;
+		}>();
+		expect(rows?.n).toBe(0);
+	});
+});
