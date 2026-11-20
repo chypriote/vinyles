@@ -88,11 +88,11 @@ describe('Refresh prices', () => {
 				{ name: 'Air - Moon Safari', price: '10' }
 			)
 		);
-		pages.set(host('Nuclear Blast'), html({ name: 'Air Talkie Walkie', price: '29.99' }));
+		pages.set(host('Napalm Records'), html({ name: 'Air Talkie Walkie', price: '29.99' }));
 		const refreshed = await catalog.refreshPrices(token, item.id);
 		expect(refreshed.priceQuotes.map((q) => [q.store.name, q.priceCents])).toEqual([
 			['Fnac', 2750],
-			['Nuclear Blast', 2999]
+			['Napalm Records', 2999]
 		]);
 		expect(refreshed.priceQuotes[0].url).toContain(host('Fnac'));
 	});
@@ -100,11 +100,11 @@ describe('Refresh prices', () => {
 	it('replaces the quote of a Store, and drops it when the Store has no matching product', async () => {
 		const item = await addItem();
 		pages.set(host('Fnac'), html({ name: 'Air - Talkie Walkie', price: '30' }));
-		pages.set(host('Nuclear Blast'), html({ name: 'Air - Talkie Walkie', price: '40' }));
+		pages.set(host('Napalm Records'), html({ name: 'Air - Talkie Walkie', price: '40' }));
 		await catalog.refreshPrices(token, item.id);
 
 		pages.set(host('Fnac'), html({ name: 'Air - Talkie Walkie', price: '28' }));
-		pages.set(host('Nuclear Blast'), html({ name: 'Air - Moon Safari', price: '40' }));
+		pages.set(host('Napalm Records'), html({ name: 'Air - Moon Safari', price: '40' }));
 		const refreshed = await catalog.refreshPrices(token, item.id);
 		expect(refreshed.priceQuotes.map((q) => [q.store.name, q.priceCents])).toEqual([
 			['Fnac', 2800]
@@ -114,15 +114,15 @@ describe('Refresh prices', () => {
 	it('keeps the old quote when a Store fails or has no readable products', async () => {
 		const item = await addItem();
 		pages.set(host('Fnac'), html({ name: 'Air - Talkie Walkie', price: '30' }));
-		pages.set(host('Nuclear Blast'), html({ name: 'Air - Talkie Walkie', price: '40' }));
+		pages.set(host('Napalm Records'), html({ name: 'Air - Talkie Walkie', price: '40' }));
 		await catalog.refreshPrices(token, item.id);
 
 		pages.set(host('Fnac'), new Response('blocked', { status: 403 }));
-		pages.set(host('Nuclear Blast'), new Response('<html>no data</html>'));
+		pages.set(host('Napalm Records'), new Response('<html>no data</html>'));
 		const refreshed = await catalog.refreshPrices(token, item.id);
 		expect(refreshed.priceQuotes.map((q) => [q.store.name, q.priceCents])).toEqual([
 			['Fnac', 3000],
-			['Nuclear Blast', 4000]
+			['Napalm Records', 4000]
 		]);
 	});
 });
@@ -266,5 +266,50 @@ describe('Refresh of the oldest items', () => {
 		expect(await refreshedAt(id)).toBeNull();
 		await catalog.refreshOldest({ size: 1, olderThanDays: 14 });
 		expect(await refreshedAt(id)).not.toBeNull();
+	});
+});
+
+describe('Shopify Stores', () => {
+	const suggestions = (...products: { title: string; price: string; url: string }[]) =>
+		Response.json({ resources: { results: { products } } });
+
+	it('are read through their search suggestions, and the quote links to the product', async () => {
+		const item = await addItem();
+		pages.set(
+			host('Impericon'),
+			suggestions(
+				{ title: 'Air - Talkie Walkie LP', price: '27.99', url: '/products/air-talkie-walkie' },
+				{ title: 'Air - Moon Safari LP', price: '20.00', url: '/products/air-moon-safari' }
+			)
+		);
+		const refreshed = await catalog.refreshPrices(token, item.id);
+		const quote = refreshed.priceQuotes.find((q) => q.store.name === 'Impericon');
+		expect(quote).toMatchObject({
+			priceCents: 2799,
+			url: 'https://www.impericon.com/products/air-talkie-walkie'
+		});
+		expect(requested.find((u) => u.host === host('Impericon'))?.pathname).toBe(
+			'/search/suggest.json'
+		);
+	});
+
+	it('drops the quote when the suggestions hold no matching product, and keeps it when they are not JSON', async () => {
+		const item = await addItem();
+		pages.set(
+			host('Impericon'),
+			suggestions({ title: 'Air - Talkie Walkie', price: '30', url: '/p/1' })
+		);
+		await catalog.refreshPrices(token, item.id);
+
+		pages.set(host('Impericon'), new Response('<html>not json</html>'));
+		const kept = await catalog.refreshPrices(token, item.id);
+		expect(kept.priceQuotes.map((q) => q.priceCents)).toEqual([3000]);
+
+		pages.set(
+			host('Impericon'),
+			suggestions({ title: 'Air - Moon Safari', price: '20', url: '/p/2' })
+		);
+		const dropped = await catalog.refreshPrices(token, item.id);
+		expect(dropped.priceQuotes).toEqual([]);
 	});
 });
