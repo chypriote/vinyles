@@ -144,14 +144,10 @@
 
 	/** What the dialog shows: a rated candidate reuses its search rating. */
 	const shownCheck = $derived<Check | null>(
-		picked
-			? key(picked) in ratings
-				? { state: 'done', reason: ratings[key(picked)] }
-				: null
-			: check
+		picked && key(picked) in ratings ? { state: 'done', reason: ratings[key(picked)] } : check
 	);
-	/** An uploaded or addressed image can only be saved once its quality is known. */
-	const saveBlocked = $derived(!picked && check?.state !== 'done');
+	/** A cover can only be saved once its quality is known. */
+	const saveBlocked = $derived(shownCheck?.state !== 'done');
 
 	async function toggleUrl() {
 		urlOpen = !urlOpen;
@@ -220,6 +216,11 @@
 	function choose(candidate: CoverCandidate) {
 		picked = candidate;
 		check = null;
+		// The grid rating may not have loaded, or may have failed: rate it now.
+		if (!(key(candidate) in ratings)) {
+			const params = new URLSearchParams({ source: candidate.source, id: candidate.id });
+			assess(fetch(`/api/albums/${albumId}/cover-candidates/rating?${params}`));
+		}
 		upload = null;
 		remoteUrl = null;
 		preview = {
