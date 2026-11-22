@@ -182,13 +182,22 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 	const db = drizzle(env.DB);
 	const intervalMs = options.lookupIntervalMs ?? 1000;
 
+	/** A new Cover version, already checked: the cover check has nothing left to do for it. */
+	function newCoverVersion(body: ArrayBuffer) {
+		return {
+			coverVersion: sql`${albums.coverVersion} + 1`,
+			coverCheckedVersion: sql`${albums.coverVersion} + 1`,
+			coverCheckReason: rateImage(body).reason
+		};
+	}
+
 	/** Writes the image as the Cover of the Album, marks it Owner-chosen and changes its URL. */
 	async function storeCover(albumId: number, body: ArrayBuffer, contentType: string) {
 		const coverKey = `covers/${albumId}`;
 		await env.COVERS.put(coverKey, body, { httpMetadata: { contentType } });
 		await db
 			.update(albums)
-			.set({ coverKey, coverChosen: true, coverVersion: sql`${albums.coverVersion} + 1` })
+			.set({ coverKey, coverChosen: true, ...newCoverVersion(body) })
 			.where(eq(albums.id, albumId));
 	}
 
@@ -474,9 +483,7 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 			.set({
 				releaseYear: match.releaseYear,
 				musicbrainzId: match.musicbrainzId,
-				...(cover
-					? { coverKey, coverChosen: false, coverVersion: sql`${albums.coverVersion} + 1` }
-					: {})
+				...(cover ? { coverKey, coverChosen: false, ...newCoverVersion(cover.body) } : {})
 			})
 			.where(eq(albums.id, albumId));
 	}

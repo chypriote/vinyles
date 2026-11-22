@@ -1777,6 +1777,10 @@ describe('Cover quality check', () => {
 				body,
 				contentType: 'image/png'
 			});
+			// A Cover saved before the check existed: the check has not run on it.
+			await env.DB.prepare('UPDATE album SET cover_checked_version = NULL WHERE id = ?')
+				.bind(record.album.id)
+				.run();
 		}
 		return record.album.id;
 	}
@@ -1853,6 +1857,25 @@ describe('Cover quality check', () => {
 		]);
 	});
 
+	it('stores the check result when a Cover is saved, so it is not checked again', async () => {
+		const id = await withCover('Fresh');
+		await catalog.uploadCover(token, {
+			albumId: id,
+			body: png(300, 300),
+			contentType: 'image/png'
+		});
+		expect(await catalog.coverCheckProgress(token)).toEqual({ pending: 0, failing: 1 });
+		expect((await catalog.listFailingCovers(token)).map((f) => f.reason)).toEqual([
+			'Too small: 300×300 px (at least 400 px)'
+		]);
+		await catalog.uploadCover(token, {
+			albumId: id,
+			body: png(500, 500),
+			contentType: 'image/png'
+		});
+		expect(await catalog.coverCheckProgress(token)).toEqual({ pending: 0, failing: 0 });
+	});
+
 	it('checks a batch at a time', async () => {
 		await withCover('A', png(500, 500));
 		await withCover('B', png(500, 500));
@@ -1872,8 +1895,7 @@ describe('Cover quality check', () => {
 			contentType: 'image/png'
 		});
 		expect(await catalog.listFailingCovers(token)).toEqual([]);
-		expect(await catalog.coverCheckProgress(token)).toEqual({ pending: 1, failing: 0 });
-		expect(await catalog.checkCovers(token, { size: 5 })).toEqual({ pending: 0, failing: 0 });
+		expect(await catalog.coverCheckProgress(token)).toEqual({ pending: 0, failing: 0 });
 	});
 
 	it('is Owner-only', async () => {
