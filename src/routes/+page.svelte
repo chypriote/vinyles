@@ -1,4 +1,5 @@
 <script lang="ts">
+	import DiscIcon from '@lucide/svelte/icons/disc-3';
 	import { SvelteURLSearchParams } from 'svelte/reactivity';
 	import type { PageProps } from './$types';
 	import type { WithCoverUrl } from '#lib/covers';
@@ -114,8 +115,18 @@
 	filtersActive={selectedArtists.length > 0}
 >
 	{#snippet chips()}
-		<Chip tone="highlight" label="records" value={String(data.totals.recordCount)} />
-		<Chip tone="success" label="spent" value={formatCents(data.totals.totalSpentCents)} />
+		<Chip
+			tone="highlight"
+			label="records"
+			value={String(data.totals.recordCount)}
+			icon={DiscIcon}
+		/>
+		<Chip
+			tone="success"
+			label="spent"
+			value={formatCents(data.totals.totalSpentCents)}
+			mobileHidden
+		/>
 	{/snippet}
 	{#snippet login()}
 		<LoginAction isOwner={data.isOwner} />
