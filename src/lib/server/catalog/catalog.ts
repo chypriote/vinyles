@@ -1325,17 +1325,26 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 
 		async listFailingCovers(token) {
 			await owner(token);
-			return db
+			const rows = await db
 				.select({
 					albumId: albums.id,
 					artist: artists.name,
 					title: albums.title,
-					reason: sql<string>`${albums.coverCheckReason}`
+					reason: sql<string>`${albums.coverCheckReason}`,
+					coverKey: albums.coverKey,
+					coverVersion: albums.coverVersion,
+					inCollection: sql<boolean>`exists (select 1 from ${records} where ${records.albumId} = ${albums.id})`,
+					inWishlist: sql<boolean>`exists (select 1 from ${wishlistItems} where ${wishlistItems.albumId} = ${albums.id})`
 				})
 				.from(albums)
 				.innerJoin(artists, eq(albums.artistId, artists.id))
 				.where(failing)
 				.orderBy(artists.name, albums.title);
+			return rows.map((row) => ({
+				...row,
+				inCollection: Boolean(row.inCollection),
+				inWishlist: Boolean(row.inWishlist)
+			}));
 		},
 
 		async importProgress(token) {
