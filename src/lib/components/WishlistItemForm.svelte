@@ -3,10 +3,9 @@
 	import { eurosToCents } from '#lib/money';
 	import type { AddWishlistItemInput, Desire } from '#lib/server/catalog/types';
 	import Button from './Button.svelte';
-	import DesireDots from './DesireDots.svelte';
+	import DesireSelect from './DesireSelect.svelte';
 	import Field from './Field.svelte';
 	import StoreSelect from './StoreSelect.svelte';
-	import { ToggleGroup, ToggleGroupItem } from './ui/toggle-group/index.js';
 
 	let {
 		artists,
@@ -21,7 +20,7 @@
 	let artist = $state('');
 	let album = $state('');
 	let variant = $state('');
-	let desire = $state<Desire>(2);
+	let desire = $state<Desire>(3);
 	let quotes = $state<{ key: number; storeId: string; price: string }[]>([]);
 	let nextKey = 0;
 	let error = $state<string | null>(null);
@@ -30,7 +29,6 @@
 	let addingAnyway = $state(false);
 
 	const listId = $props.id();
-	const desireLabelId = `${listId}-desire`;
 
 	function buildInput(addAnyway: boolean): AddWishlistItemInput | string {
 		const priceQuotes = [];
@@ -77,21 +75,8 @@
 	<Field label="Album" required bind:value={album} />
 	<Field label="Variant" bind:value={variant} />
 	<div class="flex flex-col gap-1.5">
-		<span class="text-sm font-bold" id={desireLabelId}>Desire</span>
-		<ToggleGroup
-			type="single"
-			aria-labelledby={desireLabelId}
-			value={String(desire)}
-			onValueChange={(v) => {
-				if (v === '1' || v === '2' || v === '3') desire = Number(v) as Desire;
-			}}
-		>
-			{#each [3, 2, 1] as level (level)}
-				<ToggleGroupItem value={String(level)}>
-					<DesireDots value={level as Desire} />
-				</ToggleGroupItem>
-			{/each}
-		</ToggleGroup>
+		<span class="text-sm font-bold">Desire</span>
+		<DesireSelect label="Desire" value={desire} onPick={(level) => level && (desire = level)} />
 	</div>
 	<div class="flex flex-col gap-3">
 		<span class="text-sm font-bold">Price quotes</span>

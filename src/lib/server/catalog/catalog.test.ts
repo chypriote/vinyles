@@ -649,7 +649,7 @@ describe('Wishlist', () => {
 		const store = await storeId(OFFICIAL);
 		const add = (input: Partial<Parameters<Catalog['addWishlistItem']>[1]>) =>
 			catalog.addWishlistItem(token, { artist: 'A', album: 'B', desire: 2, ...input });
-		await expect(add({ desire: 4 as never })).rejects.toThrow();
+		await expect(add({ desire: 6 as never })).rejects.toThrow();
 		await expect(add({ priceQuotes: [{ storeId: store, priceCents: -5 }] })).rejects.toThrow();
 		await expect(add({ priceQuotes: [{ storeId: 9999, priceCents: 500 }] })).rejects.toThrow();
 		await expect(
@@ -741,13 +741,13 @@ describe('Wishlist', () => {
 			]);
 		});
 
-		it('sets the Desire of several Wishlist Items, Owner only, 1 to 3', async () => {
+		it('sets the Desire of several Wishlist Items, Owner only, 1 to 5', async () => {
 			const all = (await catalog.listWishlist()).items;
 			const ids = all.filter((i) => i.album.artist === 'Air').map((i) => i.id);
 			await catalog.setDesire(token, ids, 1);
 			expect(await titles({ desires: [1] })).toHaveLength(3);
 			await expect(catalog.setDesire('bad', ids, 3)).rejects.toThrow();
-			await expect(catalog.setDesire(token, ids, 4 as 3)).rejects.toThrow('Desire is 1, 2 or 3');
+			await expect(catalog.setDesire(token, ids, 6 as 3)).rejects.toThrow('Desire is 1 to 5');
 		});
 
 		it('filters by several Desires at once, none meaning all', async () => {

@@ -24,7 +24,7 @@
 		action?: Snippet;
 		/** SearchField. */
 		searchBox?: Snippet;
-		/** Artist filter, Selects, DesireFilter. */
+		/** Artist filter, Selects, desire filter. */
 		controls?: Snippet;
 		/** Show a dot on the closed toggle when a search or filter is set. */
 		searchActive?: boolean;

@@ -3,7 +3,7 @@
  * Types only. Domain names follow CONTEXT.md. Prices are integer euro cents.
  */
 
-export type Desire = 1 | 2 | 3;
+export type Desire = 1 | 2 | 3 | 4 | 5;
 export type AcquisitionKind = 'purchase' | 'gift';
 
 // --- Reads: shared shapes ----------------------------------------------------
@@ -253,7 +253,7 @@ export interface ImportCollectionRow {
 		| { kind: 'purchase'; store: string; priceCents: number };
 }
 
-/** Wishlist row from the sheet, already cleaned. Bold = Desire 3, normal = Desire 2. */
+/** Wishlist row from the sheet, already cleaned. Bold = Desire 5, normal = Desire 3. */
 export interface ImportWishlistRow {
 	artist: string;
 	album: string;
@@ -409,7 +409,7 @@ export interface Catalog {
 	): Promise<SuggestionProgress>;
 	/** Pending Suggestions: not owned, not on the Wishlist, not Discarded. Seed rank first. */
 	listSuggestions(token: string): Promise<SuggestionView[]>;
-	/** Puts the Suggestion on the Wishlist with Desire 2. */
+	/** Puts the Suggestion on the Wishlist with Desire 3. */
 	addSuggestion(token: string, id: number): Promise<void>;
 	/** Puts the Album of the Suggestion on the Discarded list. */
 	discardSuggestion(token: string, id: number): Promise<void>;

@@ -1,5 +1,5 @@
 <script lang="ts">
-	let { value }: { value: 1 | 2 | 3 } = $props();
+	let { value }: { value: 1 | 2 | 3 | 4 | 5 } = $props();
 </script>
 
 <span class="inline-flex items-center gap-1 text-icon-accent">
@@ -8,5 +8,5 @@
 			<span class="size-2 rounded-full bg-current"></span>
 		{/each}
 	</span>
-	<span class="sr-only">Desire {value} of 3</span>
+	<span class="sr-only">Desire {value} of 5</span>
 </span>

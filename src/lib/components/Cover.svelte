@@ -13,7 +13,7 @@
 		album: string;
 		artist: string;
 		coverUrl?: string | null;
-		desire?: 1 | 2 | 3;
+		desire?: 1 | 2 | 3 | 4 | 5;
 		/** Select mode: set to show a checked state. Leave unset otherwise. */
 		selected?: boolean;
 		onSelect?: (el: HTMLElement) => void;
