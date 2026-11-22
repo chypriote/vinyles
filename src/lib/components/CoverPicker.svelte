@@ -8,7 +8,7 @@
 	import UploadIcon from '@lucide/svelte/icons/upload';
 	import LinkIcon from '@lucide/svelte/icons/link';
 	import SpinnerIcon from '@lucide/svelte/icons/loader-circle';
-	import { tick } from 'svelte';
+	import { tick, untrack } from 'svelte';
 
 	let {
 		albumId,
@@ -34,7 +34,8 @@
 	const key = (c: CoverCandidate) => c.source + c.id;
 	// A candidate whose image does not load is left out.
 	const shown = $derived((candidates ?? []).filter((c) => !failed.includes(key(c))));
-	let text = $state(query);
+	// The field starts from the prop and is then edited freely.
+	let text = $state(untrack(() => query));
 	// Drops the answer of an older request when a newer one was sent.
 	let latest = 0;
 

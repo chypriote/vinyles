@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { addStore, emptyAcquisition, postAction, toAcquisitionInput } from '#lib/forms';
+	import { untrack } from 'svelte';
 	import AcquisitionFields from './AcquisitionFields.svelte';
 	import Button from './Button.svelte';
 	import Field from './Field.svelte';
@@ -16,7 +17,8 @@
 		onDone: () => void;
 	} = $props();
 
-	let variant = $state(initialVariant ?? '');
+	// The field starts from the prop and is then edited freely.
+	let variant = $state(untrack(() => initialVariant) ?? '');
 	let acquisition = $state(emptyAcquisition());
 	let error = $state<string | null>(null);
 	let busy = $state(false);
