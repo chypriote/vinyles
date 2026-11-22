@@ -24,6 +24,7 @@
 	import GotItForm from '#lib/components/GotItForm.svelte';
 	import Popup from '#lib/components/Popup.svelte';
 	import SearchField from '#lib/components/SearchField.svelte';
+	import SortDirection from '#lib/components/SortDirection.svelte';
 	import Select from '#lib/components/Select.svelte';
 	import StickyBar from '#lib/components/StickyBar.svelte';
 
@@ -38,10 +39,6 @@
 		{ value: 'year', label: 'Sort: release year' }
 	];
 
-	const directions = [
-		{ value: 'asc', label: 'Ascending' },
-		{ value: 'desc', label: 'Descending' }
-	];
 	// The usual direction of each sort: the latest or most first for year, acquired and desire.
 	const usualDirection: Record<string, string> = {
 		desire: 'desc',
@@ -203,7 +200,7 @@
 		/>
 		<ArtistFilter bind:value={selectedArtists} names={artistNames} />
 		<Select bind:value={sort} label="Sort by" options={sorts} />
-		<Select bind:value={direction} label="Sort order" options={directions} />
+		<SortDirection bind:value={direction} />
 		<DesireFilter bind:value={desires} />
 	{/snippet}
 </StickyBar>
