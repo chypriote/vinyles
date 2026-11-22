@@ -46,6 +46,7 @@ let fakeAlbums: FakeAlbum[];
 let calls: FakeCall[];
 let failMusicBrainz: boolean;
 let failDiscogs: boolean;
+let endlessPulls = 0;
 
 function installFakeWeb() {
 	fakeAlbums = [];
@@ -105,6 +106,17 @@ function installFakeWeb() {
 				return new Response(new Uint8Array(2 * 1024 * 1024 + 1), {
 					headers: { 'content-type': 'image/png' }
 				});
+			}
+			if (url.pathname === '/endless.png') {
+				return new Response(
+					new ReadableStream({
+						pull(controller) {
+							endlessPulls++;
+							controller.enqueue(new Uint8Array(512 * 1024));
+						}
+					}),
+					{ headers: { 'content-type': 'image/png' } }
+				);
 			}
 			if (url.pathname === '/page.html') {
 				return new Response('<html>', { headers: { 'content-type': 'text/html' } });
@@ -1436,6 +1448,9 @@ describe('Changing the Cover of an Album', () => {
 			await expect(use('ftp://images.example/a.png')).rejects.toThrow('http or https');
 			await expect(use('https://images.example/page.html')).rejects.toThrow('JPEG, PNG or WebP');
 			await expect(use('https://images.example/big.png')).rejects.toThrow('under 2 MB');
+			endlessPulls = 0;
+			await expect(use('https://images.example/endless.png')).rejects.toThrow('under 2 MB');
+			expect(endlessPulls).toBeLessThan(10);
 			await expect(use('https://images.example/missing.png')).rejects.toThrow('answered 404');
 			await expect(use('https://images.example/cover.webp', 'bad-token')).rejects.toThrow();
 		});

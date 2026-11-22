@@ -82,6 +82,7 @@ type BatchStatements = Parameters<Db['batch']>[0];
 const HEADER_BYTES = 64 * 1024;
 const UPLOAD_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const MAX_UPLOAD_BYTES = 2 * 1024 * 1024;
+const MAX_PAGE_BYTES = 5 * 1024 * 1024;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 /** Browser-like: some Stores refuse a script. */
 const PAGE_USER_AGENT = 'Mozilla/5.0 (X11; Linux x86_64; rv:130.0) Gecko/20100101 Firefox/130.0';
@@ -150,6 +151,25 @@ function sortBy<T extends { id: number; album: AlbumSummary }>(
 		}
 		return byAlbum(a.album, b.album) || a.id - b.id;
 	});
+}
+
+/** The body of a response, or null once it passes `max` bytes: the read stops there. */
+async function readBody(response: Response, max: number): Promise<Uint8Array | null> {
+	if (!response.body) return new Uint8Array();
+	const reader = response.body.getReader();
+	const chunks: Uint8Array[] = [];
+	let size = 0;
+	for (;;) {
+		const { done, value } = await reader.read();
+		if (done) break;
+		size += value.byteLength;
+		if (size > max) {
+			await reader.cancel();
+			return null;
+		}
+		chunks.push(value);
+	}
+	return new Uint8Array(await new Blob(chunks as BlobPart[]).arrayBuffer());
 }
 
 export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Catalog {
@@ -304,7 +324,9 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 				signal: AbortSignal.timeout(PAGE_TIMEOUT_MS)
 			});
 			if (!response.ok) console.warn(`Refresh: ${new URL(url).host} answered ${response.status}`);
-			return response.ok ? await response.text() : null;
+			if (!response.ok) return null;
+			const body = await readBody(response, MAX_PAGE_BYTES);
+			return body && new TextDecoder().decode(body);
 		} catch (error) {
 			console.warn(`Refresh: ${new URL(url).host} failed: ${error}`);
 			return null;
@@ -740,10 +762,10 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 			}
 			const response = await fetch(url, { headers: { 'User-Agent': 'vinyles/0.1' } });
 			if (!response.ok) throw new Error(`The address answered ${response.status}`);
-			const length = Number(response.headers.get('content-length'));
-			if (length > MAX_UPLOAD_BYTES) throw new Error('The image must be under 2 MB');
+			const body = await readBody(response, MAX_UPLOAD_BYTES);
+			if (!body) throw new Error('The image must be under 2 MB');
 			const contentType = (response.headers.get('content-type') ?? '').split(';')[0].trim();
-			await saveUpload(input.albumId, await response.arrayBuffer(), contentType);
+			await saveUpload(input.albumId, body.buffer as ArrayBuffer, contentType);
 		},
 
 		async login(password) {
