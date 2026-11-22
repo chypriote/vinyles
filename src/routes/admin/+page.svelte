@@ -59,6 +59,7 @@
 		suggestionError = null;
 		try {
 			let cursor: number | null = 0;
+			let failures = 0;
 			while (cursor !== null) {
 				const response: Response = await fetch('/api/admin/suggestions/find', {
 					method: 'POST',
@@ -69,7 +70,12 @@
 						((await response.json()) as { error?: string }).error ?? 'The search failed';
 					break;
 				}
-				cursor = ((await response.json()) as SuggestionProgress).next;
+				const progress = (await response.json()) as SuggestionProgress;
+				failures += progress.failures;
+				cursor = progress.next;
+			}
+			if (failures && !suggestionError) {
+				suggestionError = `${failures} searches failed (MusicBrainz or Last.fm). Try again later.`;
 			}
 			await invalidateAll();
 		} catch {

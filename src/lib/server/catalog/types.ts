@@ -303,6 +303,8 @@ export interface SuggestionProgress {
 	pending: number;
 	/** Position of the next seed Artist to search, or null when the run is over (cap reached or all seeds read). */
 	next: number | null;
+	/** Searches of this batch that failed (service down, wrong Last.fm key). They are skipped, not retried. */
+	failures: number;
 }
 
 // --- Cover quality check (Owner) ---------------------------------------------

@@ -127,7 +127,7 @@ describe('Suggestions from MusicBrainz', () => {
 			{ artist: 'Air', title: '10 000 Hz Legend', year: 2001 },
 			{ artist: 'Air', title: 'Pocket Symphony', year: 2007 }
 		);
-		expect(await run()).toEqual({ pending: 1, next: null });
+		expect(await run()).toEqual({ pending: 1, next: null, failures: 0 });
 		expect(await catalog.listSuggestions(token)).toEqual([
 			{
 				id: expect.any(Number),
@@ -173,7 +173,7 @@ describe('Suggestions from MusicBrainz', () => {
 	it('proposes nothing for an Artist with no unknown studio Album', async () => {
 		await own('Air', 'Moon Safari');
 		groups.push({ artist: 'Air', title: 'Moon Safari', year: 1998 });
-		expect(await run()).toEqual({ pending: 0, next: null });
+		expect(await run()).toEqual({ pending: 0, next: null, failures: 0 });
 	});
 
 	it('uses Artists from the Wishlist as seeds too', async () => {
@@ -184,7 +184,7 @@ describe('Suggestions from MusicBrainz', () => {
 	});
 
 	it('does not search Artists when the Collection and Wishlist are empty', async () => {
-		expect(await run()).toEqual({ pending: 0, next: null });
+		expect(await run()).toEqual({ pending: 0, next: null, failures: 0 });
 		expect(artistSearches).toEqual([]);
 	});
 
@@ -211,8 +211,8 @@ describe('Suggestions from MusicBrainz', () => {
 			await own(artist, 'Old');
 			groups.push({ artist, title: 'New', year: 2000 });
 		}
-		expect(await run({ size: 2 })).toEqual({ pending: 2, next: 2 });
-		expect(await run({ size: 2, cursor: 2 })).toEqual({ pending: 3, next: null });
+		expect(await run({ size: 2 })).toEqual({ pending: 2, next: 2, failures: 0 });
+		expect(await run({ size: 2, cursor: 2 })).toEqual({ pending: 3, next: null, failures: 0 });
 		expect(await titles()).toEqual(['New', 'New', 'New']);
 	});
 
@@ -234,10 +234,10 @@ describe('Suggestions from MusicBrainz', () => {
 			await own(artist, 'Old');
 			groups.push({ artist, title: 'New', year: 2000 });
 		}
-		expect(await run()).toEqual({ pending: 20, next: null });
+		expect(await run()).toEqual({ pending: 20, next: null, failures: 0 });
 		expect(await catalog.listSuggestions(token)).toHaveLength(20);
 		expect(artistSearches).toHaveLength(20);
-		expect(await run()).toEqual({ pending: 20, next: null });
+		expect(await run()).toEqual({ pending: 20, next: null, failures: 0 });
 		expect(artistSearches).toHaveLength(20);
 	});
 
@@ -251,18 +251,21 @@ describe('Suggestions from MusicBrainz', () => {
 		await own('A', 'New');
 		await want('B', 'New');
 		expect((await catalog.listSuggestions(token)).map((s) => s.artist)).toEqual(['C']);
-		expect(await run()).toEqual({ pending: 1, next: null });
+		expect(await run()).toEqual({ pending: 1, next: null, failures: 0 });
 		const item = await want('C', 'Other');
 		await catalog.discard(token, item.id);
 		await catalog.undiscard(token, item.album.id);
 		expect(await catalog.listSuggestions(token)).toHaveLength(1);
 	});
 
-	it('reports a MusicBrainz failure and saves nothing', async () => {
+	it('counts a MusicBrainz failure, saves nothing and goes on to the next Artist', async () => {
 		await own('Air', 'Moon Safari');
+		await own('Beck', 'Odelay');
+		groups.push({ artist: 'Beck', title: 'Mellow Gold', year: 1994 });
 		failMusicBrainz = true;
-		await expect(run()).rejects.toThrow('MusicBrainz');
-		expect(await catalog.listSuggestions(token)).toEqual([]);
+		expect(await run({ size: 1 })).toEqual({ pending: 0, next: 1, failures: 1 });
+		failMusicBrainz = false;
+		expect(await run({ size: 1, cursor: 1 })).toEqual({ pending: 1, next: null, failures: 0 });
 	});
 });
 
@@ -285,7 +288,7 @@ describe('Add and Discard a Suggestion', () => {
 			album: { artist: 'Air', title: 'Talkie Walkie', releaseYear: 2004 }
 		});
 		expect(await catalog.listSuggestions(token)).toEqual([]);
-		expect(await run()).toEqual({ pending: 0, next: null });
+		expect(await run()).toEqual({ pending: 0, next: null, failures: 0 });
 	});
 
 	it('Discard puts the Album on the Discarded list and removes the Suggestion', async () => {
@@ -297,7 +300,7 @@ describe('Add and Discard a Suggestion', () => {
 		]);
 		expect((await catalog.listWishlist()).items).toEqual([]);
 		// Never proposed again.
-		expect(await run()).toEqual({ pending: 0, next: null });
+		expect(await run()).toEqual({ pending: 0, next: null, failures: 0 });
 	});
 
 	it('Undiscard makes the Album proposable again', async () => {
@@ -305,7 +308,17 @@ describe('Add and Discard a Suggestion', () => {
 		await catalog.discardSuggestion(token, suggestion.id);
 		const [listed] = await catalog.listDiscarded(token);
 		await catalog.undiscard(token, listed.albumId);
-		expect(await run()).toEqual({ pending: 1, next: null });
+		expect(await run()).toEqual({ pending: 1, next: null, failures: 0 });
+	});
+
+	it('Add of a Suggestion whose Album was wanted meanwhile makes no duplicate', async () => {
+		const [suggestion] = await catalog.listSuggestions(token);
+		await want('Air', 'Talkie Walkie', 1);
+		await catalog.addSuggestion(token, suggestion.id);
+		expect((await catalog.listWishlist()).items).toHaveLength(1);
+		await expect(catalog.addSuggestion(token, suggestion.id)).rejects.toThrow(
+			'Suggestion not found'
+		);
 	});
 
 	it('refuses an unknown Suggestion', async () => {
@@ -339,7 +352,7 @@ describe('Suggestions from Last.fm', () => {
 		similar.Air = ['Zero 7'];
 		topAlbums['Zero 7'] = ['Simple Things'];
 		groups.push({ artist: 'Zero 7', title: 'Simple Things', year: 2001 });
-		expect(await run()).toEqual({ pending: 1, next: null });
+		expect(await run()).toEqual({ pending: 1, next: null, failures: 0 });
 		expect(await catalog.listSuggestions(token)).toEqual([
 			{
 				id: expect.any(Number),
@@ -401,15 +414,17 @@ describe('Suggestions from Last.fm', () => {
 			similar[artist] = [`Similar ${i}`];
 			topAlbums[`Similar ${i}`] = ['Top'];
 		}
-		expect(await run()).toEqual({ pending: 20, next: null });
+		expect(await run()).toEqual({ pending: 20, next: null, failures: 0 });
 		const sources = (await catalog.listSuggestions(token)).map((s) => s.source);
 		expect(sources).toHaveLength(20);
 		expect(sources.filter((s) => s === 'lastfm').length).toBeGreaterThan(0);
 	});
 
-	it('reports a Last.fm failure, such as a wrong key', async () => {
+	it('counts a Last.fm failure, such as a wrong key, and keeps the MusicBrainz Suggestion', async () => {
+		groups.push({ artist: 'Air', title: 'Talkie Walkie', year: 2004 });
 		failLastFm = true;
-		await expect(run()).rejects.toThrow('Last.fm');
+		expect(await run()).toEqual({ pending: 1, next: null, failures: 1 });
+		expect(await titles()).toEqual(['Talkie Walkie']);
 	});
 
 	it('is skipped without a key: MusicBrainz still works', async () => {

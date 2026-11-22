@@ -959,29 +959,23 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 				pending++;
 				covered.add(normalize(values.artist));
 			};
-			let index = start;
-			for (; index < seeds.length && index < start + size && pending < MAX_SUGGESTIONS; index++) {
-				const { artist } = seeds[index];
-				const rank = index + 1;
-				if (!covered.has(normalize(artist))) {
-					const pick = oldestUnknown(
-						await findStudioAlbums(artist, intervalMs),
-						await knownTitles(artist)
-					);
-					if (pick) {
-						await save({
-							artist,
-							title: pick.title,
-							releaseYear: pick.releaseYear,
-							musicbrainzId: pick.musicbrainzId,
-							source: 'musicbrainz',
-							reason: `More by ${artist}`,
-							rank
-						});
-					}
-				}
-				const key = env.LASTFM_API_KEY;
-				if (!key || pending >= MAX_SUGGESTIONS) continue;
+			const fromMusicBrainz = async (artist: string, rank: number) => {
+				const pick = oldestUnknown(
+					await findStudioAlbums(artist, intervalMs),
+					await knownTitles(artist)
+				);
+				if (!pick) return;
+				await save({
+					artist,
+					title: pick.title,
+					releaseYear: pick.releaseYear,
+					musicbrainzId: pick.musicbrainzId,
+					source: 'musicbrainz',
+					reason: `More by ${artist}`,
+					rank
+				});
+			};
+			const fromLastFm = async (key: string, artist: string, rank: number) => {
 				const similar = (await findSimilarArtists(key, artist))
 					.filter((name) => !seedNames.has(normalize(name)) && !covered.has(normalize(name)))
 					.slice(0, MAX_SIMILAR_TRIES);
@@ -999,10 +993,34 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 						reason: `Similar to ${artist}`,
 						rank
 					});
-					break;
+					return;
+				}
+			};
+			// A failing search must not stop the run: count it and go on to the next source or Artist.
+			let failures = 0;
+			const attempt = async (work: () => Promise<void>) => {
+				try {
+					await work();
+				} catch {
+					failures++;
+				}
+			};
+			let index = start;
+			for (; index < seeds.length && index < start + size && pending < MAX_SUGGESTIONS; index++) {
+				const { artist } = seeds[index];
+				if (!covered.has(normalize(artist))) {
+					await attempt(() => fromMusicBrainz(artist, index + 1));
+				}
+				const key = env.LASTFM_API_KEY;
+				if (key && pending < MAX_SUGGESTIONS) {
+					await attempt(() => fromLastFm(key, artist, index + 1));
 				}
 			}
-			return { pending, next: pending >= MAX_SUGGESTIONS || index >= seeds.length ? null : index };
+			return {
+				pending,
+				next: pending >= MAX_SUGGESTIONS || index >= seeds.length ? null : index,
+				failures
+			};
 		},
 
 		async listSuggestions(token): Promise<SuggestionView[]> {
@@ -1021,6 +1039,12 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 		async addSuggestion(token, id) {
 			await owner(token);
 			const suggestion = await findSuggestion(id);
+			const stillPending = (await pendingSuggestions()).some((s) => s.id === id);
+			if (!stillPending) {
+				// The Album was owned, wanted or Discarded since: a second Wishlist Item would be a duplicate.
+				await db.delete(suggestions).where(eq(suggestions.id, id));
+				return;
+			}
 			const albumId = await ensureAlbum(suggestion.artist, suggestion.title);
 			await db.batch([
 				db.insert(wishlistItems).values({ albumId, desire: 2 }),
