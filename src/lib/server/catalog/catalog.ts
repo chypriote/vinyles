@@ -320,7 +320,8 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 				foundAt: priceQuotes.foundAt
 			})
 			.from(priceQuotes)
-			.innerJoin(stores, eq(priceQuotes.storeId, stores.id));
+			.innerJoin(stores, eq(priceQuotes.storeId, stores.id))
+			.where(id === undefined ? undefined : eq(priceQuotes.wishlistItemId, id));
 		const linkRows = await db
 			.select({
 				itemId: productLinks.wishlistItemId,
@@ -328,7 +329,8 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 				url: productLinks.url
 			})
 			.from(productLinks)
-			.innerJoin(stores, eq(productLinks.storeId, stores.id));
+			.innerJoin(stores, eq(productLinks.storeId, stores.id))
+			.where(id === undefined ? undefined : eq(productLinks.wishlistItemId, id));
 		const linksByItem = new Map<number, ProductLink[]>();
 		for (const l of linkRows) {
 			const list = linksByItem.get(l.itemId) ?? [];
