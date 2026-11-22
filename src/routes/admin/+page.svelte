@@ -220,47 +220,50 @@
 	</section>
 
 	{#if data.failing.length > 0}
-		<ul class="flex flex-col gap-4">
-			{#each data.failing as album (album.albumId)}
-				<li class="flex flex-wrap items-center gap-3">
-					{#if album.coverKey}
-						<img
-							src="/covers/{album.albumId}?v={album.coverVersion}"
-							alt=""
-							loading="lazy"
-							class="size-14 shrink-0 rounded-(--cover-radius) object-cover"
-						/>
-					{:else}
-						<span
-							aria-hidden="true"
-							class="flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-(--cover-radius) text-lg font-extrabold text-primary-foreground {tileClass(
-								album.artist
-							)}"
+		<section class="flex flex-col gap-3">
+			<h2 class="text-sm font-bold">Failing covers</h2>
+			<ul class="flex flex-col gap-4">
+				{#each data.failing as album (album.albumId)}
+					<li class="flex flex-wrap items-center gap-3">
+						{#if album.coverKey}
+							<img
+								src="/covers/{album.albumId}?v={album.coverVersion}"
+								alt=""
+								loading="lazy"
+								class="size-14 shrink-0 rounded-(--cover-radius) object-cover"
+							/>
+						{:else}
+							<span
+								aria-hidden="true"
+								class="flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-(--cover-radius) text-lg font-extrabold text-primary-foreground {tileClass(
+									album.artist
+								)}"
+							>
+								{initials(album.artist)}
+							</span>
+						{/if}
+						<div class="flex min-w-0 flex-1 flex-col">
+							<span class="text-sm font-bold">{album.title}</span>
+							<span class="text-sm text-muted-foreground">{album.artist}</span>
+							<span class="text-sm">{album.reason}</span>
+							<span class="text-xs font-medium text-muted-foreground">
+								{[album.inCollection && 'Collection', album.inWishlist && 'Wishlist']
+									.filter(Boolean)
+									.join(' + ')}
+							</span>
+						</div>
+						<Button
+							onclick={() => {
+								changing = album;
+								open = true;
+							}}
 						>
-							{initials(album.artist)}
-						</span>
-					{/if}
-					<div class="flex min-w-0 flex-1 flex-col">
-						<span class="text-sm font-bold">{album.title}</span>
-						<span class="text-sm text-muted-foreground">{album.artist}</span>
-						<span class="text-sm">{album.reason}</span>
-						<span class="text-xs font-medium text-muted-foreground">
-							{[album.inCollection && 'Collection', album.inWishlist && 'Wishlist']
-								.filter(Boolean)
-								.join(' + ')}
-						</span>
-					</div>
-					<Button
-						onclick={() => {
-							changing = album;
-							open = true;
-						}}
-					>
-						Change cover
-					</Button>
-				</li>
-			{/each}
-		</ul>
+							Change cover
+						</Button>
+					</li>
+				{/each}
+			</ul>
+		</section>
 	{/if}
 </main>
 
