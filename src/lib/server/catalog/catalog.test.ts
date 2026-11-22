@@ -922,17 +922,35 @@ describe('Wishlist', () => {
 		return added.item;
 	}
 
-	it('Discard puts the Album on the Discarded list, by artist then title', async () => {
+	it('Discard puts the Album on the Discarded list, latest discard first', async () => {
+		const tick = () => new Promise((resolve) => setTimeout(resolve, 5));
 		const b = await addItem('Beck', 'Odelay');
 		const a2 = await addItem('Air', 'Talkie Walkie');
 		const a1 = await addItem('Air', 'Moon Safari');
 		await catalog.discard(token, b.id);
+		await tick();
 		await catalog.discard(token, a2.id);
+		await tick();
 		await catalog.discard(token, a1.id);
 		expect(await catalog.listDiscarded(token)).toEqual([
 			{ albumId: a1.album.id, artist: 'Air', title: 'Moon Safari' },
 			{ albumId: a2.album.id, artist: 'Air', title: 'Talkie Walkie' },
 			{ albumId: b.album.id, artist: 'Beck', title: 'Odelay' }
+		]);
+	});
+
+	it('an Album discarded before the date was recorded comes last, by artist then title', async () => {
+		const old2 = await addItem('Beck', 'Odelay');
+		const old1 = await addItem('Air', 'Moon Safari');
+		const recent = await addItem('Zero 7', 'Simple Things');
+		await catalog.discard(token, old2.id);
+		await catalog.discard(token, old1.id);
+		await env.DB.prepare('UPDATE discarded_album SET discarded_at = NULL').run();
+		await catalog.discard(token, recent.id);
+		expect((await catalog.listDiscarded(token)).map((d) => d.title)).toEqual([
+			'Simple Things',
+			'Moon Safari',
+			'Odelay'
 		]);
 	});
 

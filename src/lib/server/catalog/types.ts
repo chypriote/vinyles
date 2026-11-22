@@ -417,7 +417,7 @@ export interface Catalog {
 	discard(token: string, wishlistItemId: number): Promise<void>;
 	/** Takes the Album off the Discarded list. */
 	undiscard(token: string, albumId: number): Promise<void>;
-	/** The Discarded list, by artist then title. */
+	/** The Discarded list, latest discard first. Albums with no recorded date come last, by artist then title. */
 	listDiscarded(token: string): Promise<DiscardedAlbum[]>;
 	setDesire(token: string, wishlistItemIds: number[], desire: Desire): Promise<void>;
 	/**

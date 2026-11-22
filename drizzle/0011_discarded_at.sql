@@ -1,0 +1,1 @@
+ALTER TABLE `discarded_album` ADD `discarded_at` text;

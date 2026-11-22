@@ -79,7 +79,9 @@ export const wishlistItems = sqliteTable(
 export const discardedAlbums = sqliteTable('discarded_album', {
 	albumId: integer('album_id')
 		.primaryKey()
-		.references(() => albums.id, { onDelete: 'cascade' })
+		.references(() => albums.id, { onDelete: 'cascade' }),
+	/** ISO time of the discard. Null for Albums discarded before it was recorded. */
+	discardedAt: text('discarded_at')
 });
 
 /** An Album proposed for the Wishlist. It may not be an `album` row yet. */

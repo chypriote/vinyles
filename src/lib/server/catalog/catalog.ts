@@ -1,4 +1,17 @@
-import { and, count, eq, gt, inArray, isNotNull, isNull, lte, ne, or, sql } from 'drizzle-orm';
+import {
+	and,
+	count,
+	desc,
+	eq,
+	gt,
+	inArray,
+	isNotNull,
+	isNull,
+	lte,
+	ne,
+	or,
+	sql
+} from 'drizzle-orm';
 import { drizzle, type DrizzleD1Database } from 'drizzle-orm/d1';
 import {
 	albums,
@@ -975,7 +988,10 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 				.where(eq(wishlistItems.id, wishlistItemId));
 			if (!item) return;
 			await db.batch([
-				db.insert(discardedAlbums).values({ albumId: item.albumId }).onConflictDoNothing(),
+				db
+					.insert(discardedAlbums)
+					.values({ albumId: item.albumId, discardedAt: new Date().toISOString() })
+					.onConflictDoNothing(),
 				db.delete(wishlistItems).where(eq(wishlistItems.id, wishlistItemId))
 			]);
 		},
@@ -992,7 +1008,12 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 				.from(discardedAlbums)
 				.innerJoin(albums, eq(albums.id, discardedAlbums.albumId))
 				.innerJoin(artists, eq(artists.id, albums.artistId))
-				.orderBy(artists.name, albums.title);
+				.orderBy(
+					sql`${discardedAlbums.discardedAt} IS NULL`,
+					desc(discardedAlbums.discardedAt),
+					artists.name,
+					albums.title
+				);
 		},
 
 		async setDesire(token, wishlistItemIds, desire) {
@@ -1183,7 +1204,10 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 			const suggestion = await findSuggestion(id);
 			const albumId = await ensureAlbum(suggestion.artist, suggestion.title);
 			await db.batch([
-				db.insert(discardedAlbums).values({ albumId }).onConflictDoNothing(),
+				db
+					.insert(discardedAlbums)
+					.values({ albumId, discardedAt: new Date().toISOString() })
+					.onConflictDoNothing(),
 				db.delete(suggestions).where(eq(suggestions.id, id))
 			]);
 		},
