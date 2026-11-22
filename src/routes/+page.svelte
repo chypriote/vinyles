@@ -114,9 +114,7 @@
 		<Chip tone="success" label="spent" value={formatCents(data.totals.totalSpentCents)} />
 	{/snippet}
 	{#snippet login()}
-		{#if !data.isOwner}
-			<LoginAction />
-		{/if}
+		<LoginAction isOwner={data.isOwner} />
 	{/snippet}
 	{#snippet action()}
 		{#if data.isOwner}

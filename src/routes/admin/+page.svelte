@@ -3,6 +3,7 @@
 	import type { PageProps } from './$types';
 	import type { CoverCheckProgress, FailingCover } from '#lib/server/catalog/types';
 	import Button from '#lib/components/Button.svelte';
+	import { Button as UiButton } from '#lib/components/ui/button/index.js';
 	import CoverPicker from '#lib/components/CoverPicker.svelte';
 	import Popup from '#lib/components/Popup.svelte';
 	import { initials, tileClass } from '#lib/tile';
@@ -45,7 +46,10 @@
 <svelte:head><title>Vinyles | Admin</title></svelte:head>
 
 <main class="mx-auto flex max-w-2xl flex-col gap-6 px-4 py-8">
-	<h1>Admin</h1>
+	<div class="flex items-center justify-between gap-3">
+		<h1>Admin</h1>
+		<UiButton variant="neutral" href="/">Back home</UiButton>
+	</div>
 
 	<section class="flex flex-col gap-3">
 		<h2 class="text-sm font-bold">Cover quality</h2>
