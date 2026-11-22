@@ -170,6 +170,31 @@ describe('Suggestions from MusicBrainz', () => {
 		expect(await titles()).toEqual(['Love 2']);
 	});
 
+	it('treats a title as known despite apostrophes, case and a final "Pt I"', async () => {
+		await own('Arctic Monkeys', "Whatever people say I am, that's what I'm not");
+		await own('Avantasia', 'The Metal Opera Pt I');
+		groups.push(
+			{
+				artist: 'Arctic Monkeys',
+				title: 'Whatever People Say I Am, That’s What I’m Not',
+				year: 2006
+			},
+			{ artist: 'Avantasia', title: 'The Metal Opera', year: 2001 },
+			{ artist: 'Avantasia', title: 'The Metal Opera Pt. II', year: 2002 }
+		);
+		await run();
+		expect(await titles()).toEqual(['The Metal Opera Pt. II']);
+	});
+
+	it('hides a saved Suggestion when its Album is later owned under a similar title', async () => {
+		await own('Avantasia', 'The Metal Opera Pt II');
+		groups.push({ artist: 'Avantasia', title: 'The Metal Opera', year: 2001 });
+		await run();
+		expect(await titles()).toEqual(['The Metal Opera']);
+		await own('Avantasia', 'The Metal Opera Pt I');
+		expect(await titles()).toEqual([]);
+	});
+
 	it('proposes nothing for an Artist with no unknown studio Album', async () => {
 		await own('Air', 'Moon Safari');
 		groups.push({ artist: 'Air', title: 'Moon Safari', year: 1998 });
