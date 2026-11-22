@@ -87,6 +87,8 @@ export interface WishlistItemView {
 	album: AlbumSummary;
 	variant: string | null;
 	desire: Desire;
+	/** ISO time of the last Refresh, even one that found nothing. Missing before the first. */
+	refreshedAt?: string;
 	priceQuotes: PriceQuote[];
 	productLinks: ProductLink[];
 }
