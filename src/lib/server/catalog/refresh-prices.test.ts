@@ -23,7 +23,11 @@ const html = (...products: { name: string; price: string }[]) =>
 
 /** The answer of a Shopify search suggestion request. */
 const suggestions = (...products: { title: string; price: string; url: string }[]) =>
-	Response.json({ resources: { results: { products } } });
+	Response.json({
+		resources: {
+			results: { products: products.map((p) => ({ ...p, title: `${p.title} Vinyl` })) }
+		}
+	});
 
 const host = (name: string) =>
 	new URL(AUTOMATIC_STORES.find((s) => s.name === name)!.searchUrl('x')).host;
@@ -159,6 +163,49 @@ describe('Refresh prices', () => {
 			['Impericon', 3000],
 			['Nuclear Blast', 4000]
 		]);
+	});
+});
+
+describe('Vinyl only', () => {
+	it('ignores a CD, a digipak or a cassette of the same Album', async () => {
+		const item = await addItem();
+		pages.set(
+			host('Nuclear Blast'),
+			Response.json({
+				resources: {
+					results: {
+						products: [
+							{ title: 'Air - Talkie Walkie CD Digipak', price: '12.99', url: '/p/cd' },
+							{ title: 'Air - Talkie Walkie Cassette', price: '9.99', url: '/p/mc' },
+							{
+								title: 'Air - Talkie Walkie Ltd. Clear - Colored Vinyl',
+								price: '29.99',
+								url: '/p/lp'
+							}
+						]
+					}
+				}
+			})
+		);
+		const refreshed = await catalog.refreshPrices(token, item.id);
+		expect(refreshed.priceQuotes.map((q) => [q.store.name, q.priceCents])).toEqual([
+			['Nuclear Blast', 2999]
+		]);
+	});
+
+	it('creates no quote when the Store only has the CD', async () => {
+		const item = await addItem();
+		pages.set(
+			host('Nuclear Blast'),
+			Response.json({
+				resources: {
+					results: {
+						products: [{ title: 'Air - Talkie Walkie CD', price: '12.99', url: '/p/cd' }]
+					}
+				}
+			})
+		);
+		expect((await catalog.refreshPrices(token, item.id)).priceQuotes).toEqual([]);
 	});
 });
 
@@ -354,7 +401,11 @@ describe('Refresh of the oldest items', () => {
 
 describe('Shopify Stores', () => {
 	const suggestions = (...products: { title: string; price: string; url: string }[]) =>
-		Response.json({ resources: { results: { products } } });
+		Response.json({
+			resources: {
+				results: { products: products.map((p) => ({ ...p, title: `${p.title} Vinyl` })) }
+			}
+		});
 
 	it('are read through their search suggestions, and the quote links to the product', async () => {
 		const item = await addItem();

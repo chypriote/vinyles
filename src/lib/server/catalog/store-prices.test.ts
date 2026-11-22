@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
 	cheapestMatch,
+	isVinyl,
 	readOffers,
 	readPagePrice,
 	readShopifySuggestions,
@@ -161,5 +162,30 @@ describe('Shopify suggestions', () => {
 		expect(
 			readShopifySuggestions({ resources: { results: { products: [] } } }, 'https://shop.test')
 		).toEqual([]);
+	});
+});
+
+describe('isVinyl', () => {
+	it('accepts vinyl and LP names', () => {
+		for (const name of [
+			'Epica - The Divine Conspiracy Ltd. Marbled 2 Vinyl',
+			'Back To Black 20: Deluxe Clear Vinyl 3LP',
+			'Demon Days: Half-Speed Vinyl LP',
+			'Air - Talkie Walkie 2LP',
+			'Faces Of Pain - Vinyl'
+		]) {
+			expect(isVinyl(name), name).toBe(true);
+		}
+	});
+
+	it('refuses a CD, a digipak, a cassette or merch', () => {
+		for (const name of [
+			'Evanescence - Fallen CD',
+			'Evanescence - Fallen Digipak',
+			'Evanescence - Fallen Cassette',
+			'Evanescence - Fallen T-Shirt'
+		]) {
+			expect(isVinyl(name), name).toBe(false);
+		}
 	});
 });

@@ -13,6 +13,7 @@ import { checkCoverImage } from './cover-check';
 import {
 	AUTOMATIC_STORES,
 	cheapestMatch,
+	isVinyl,
 	readPagePrice,
 	readShopifySuggestions,
 	shopifySuggestUrl,
@@ -316,9 +317,10 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 			if (text !== null) console.warn(`Refresh: ${store.name} suggestions are not Shopify JSON`);
 			return null;
 		}
+		offers = offers.filter((o) => isVinyl(o.name));
 		const match = cheapestMatch(offers, artist, album);
 		console.log(
-			`Refresh: ${store.name} ${offers.length} products${
+			`Refresh: ${store.name} ${offers.length} vinyl products${
 				match
 					? `, match "${match.name}"`
 					: `, none match ${artist} / ${album}: ${offers
