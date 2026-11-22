@@ -6,5 +6,6 @@ declare namespace Cloudflare {
 		OWNER_PASSWORD: string;
 		JWT_SECRET: string;
 		DISCOGS_TOKEN?: string;
+		LASTFM_API_KEY?: string;
 	}
 }

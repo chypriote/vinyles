@@ -19,14 +19,37 @@ interface FakeGroup {
 let groups: FakeGroup[];
 let failMusicBrainz: boolean;
 let artistSearches: string[];
+/** Last.fm: similar artists by seed, top albums by artist. */
+let similar: Record<string, string[]>;
+let topAlbums: Record<string, string[]>;
+let lastFmCalls: string[];
+let failLastFm: boolean;
 
 function installFakeWeb() {
 	groups = [];
 	failMusicBrainz = false;
 	artistSearches = [];
+	similar = {};
+	topAlbums = {};
+	lastFmCalls = [];
+	failLastFm = false;
 	vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
 		const url = new URL(new Request(input as RequestInfo, init).url);
 		if (url.host === 'coverartarchive.org') return new Response('Not Found', { status: 404 });
+		if (url.host === 'ws.audioscrobbler.com') {
+			const method = url.searchParams.get('method');
+			const artist = url.searchParams.get('artist') ?? '';
+			lastFmCalls.push(`${method}:${artist}:${url.searchParams.get('api_key')}`);
+			if (failLastFm) return Response.json({ error: 10, message: 'Invalid API key' });
+			if (method === 'artist.getsimilar') {
+				return Response.json({
+					similarartists: { artist: (similar[artist] ?? []).map((name) => ({ name })) }
+				});
+			}
+			return Response.json({
+				topalbums: { album: (topAlbums[artist] ?? []).map((name) => ({ name })) }
+			});
+		}
 		if (url.host !== 'musicbrainz.org') throw new Error(`Unexpected fetch to ${url.href}`);
 		if (failMusicBrainz) return new Response('unavailable', { status: 503 });
 		const query = url.searchParams.get('query') ?? '';
@@ -303,5 +326,110 @@ describe('Suggestions need the Owner', () => {
 		for (const call of calls) {
 			await expect(call()).rejects.toMatchObject({ name: 'UnauthorizedError' });
 		}
+	});
+});
+
+describe('Suggestions from Last.fm', () => {
+	beforeEach(async () => {
+		catalog = createCatalog({ ...env, LASTFM_API_KEY: 'test-key' }, { lookupIntervalMs: 0 });
+		await own('Air', 'Moon Safari');
+	});
+
+	it('proposes the top Album of a similar Artist, with its year and Cover from MusicBrainz', async () => {
+		similar.Air = ['Zero 7'];
+		topAlbums['Zero 7'] = ['Simple Things'];
+		groups.push({ artist: 'Zero 7', title: 'Simple Things', year: 2001 });
+		expect(await run()).toEqual({ pending: 1, next: null });
+		expect(await catalog.listSuggestions(token)).toEqual([
+			{
+				id: expect.any(Number),
+				artist: 'Zero 7',
+				title: 'Simple Things',
+				releaseYear: 2001,
+				musicbrainzId: 'mb-Zero 7-Simple Things',
+				source: 'lastfm',
+				reason: 'Similar to Air'
+			}
+		]);
+		expect(lastFmCalls.every((call) => call.endsWith(':test-key'))).toBe(true);
+	});
+
+	it('keeps the Suggestion when MusicBrainz does not know the Album', async () => {
+		similar.Air = ['Zero 7'];
+		topAlbums['Zero 7'] = ['Simple Things'];
+		await run();
+		expect(await catalog.listSuggestions(token)).toMatchObject([
+			{ title: 'Simple Things', releaseYear: null, musicbrainzId: null }
+		]);
+	});
+
+	it('skips Artists the Owner has, Artists already suggested and "(null)" Albums', async () => {
+		await want('Beck', 'Odelay');
+		similar.Air = ['Beck', 'Zero 7', 'Nightmares on Wax'];
+		similar.Beck = ['Zero 7'];
+		topAlbums['Zero 7'] = ['(null)'];
+		topAlbums['Nightmares on Wax'] = ['Smokers Delight'];
+		await run();
+		expect(await catalog.listSuggestions(token)).toMatchObject([
+			{ artist: 'Nightmares on Wax', reason: 'Similar to Air' }
+		]);
+		expect(lastFmCalls.filter((c) => c.startsWith('artist.gettopalbums:Beck'))).toEqual([]);
+	});
+
+	it('tries at most 3 similar Artists per seed', async () => {
+		similar.Air = ['A', 'B', 'C', 'D'];
+		topAlbums.D = ['Late'];
+		await run();
+		expect(await catalog.listSuggestions(token)).toEqual([]);
+		expect(lastFmCalls.filter((c) => c.startsWith('artist.gettopalbums')).length).toBe(3);
+	});
+
+	it('skips an Album of a similar Artist that is Discarded', async () => {
+		const gone = await want('Zero 7', 'Simple Things');
+		await catalog.discard(token, gone.id);
+		similar.Air = ['Zero 7'];
+		topAlbums['Zero 7'] = ['Simple Things', 'When It Falls'];
+		await run();
+		expect(await titles()).toEqual(['When It Falls']);
+	});
+
+	it('shares the cap of 20 with MusicBrainz, with no cap per source', async () => {
+		for (let i = 0; i < 15; i++) {
+			const artist = `Artist ${String(i).padStart(2, '0')}`;
+			await own(artist, 'Old');
+			groups.push({ artist, title: 'New', year: 2000 });
+			similar[artist] = [`Similar ${i}`];
+			topAlbums[`Similar ${i}`] = ['Top'];
+		}
+		expect(await run()).toEqual({ pending: 20, next: null });
+		const sources = (await catalog.listSuggestions(token)).map((s) => s.source);
+		expect(sources).toHaveLength(20);
+		expect(sources.filter((s) => s === 'lastfm').length).toBeGreaterThan(0);
+	});
+
+	it('reports a Last.fm failure, such as a wrong key', async () => {
+		failLastFm = true;
+		await expect(run()).rejects.toThrow('Last.fm');
+	});
+
+	it('is skipped without a key: MusicBrainz still works', async () => {
+		catalog = createCatalog(env, { lookupIntervalMs: 0 });
+		similar.Air = ['Zero 7'];
+		topAlbums['Zero 7'] = ['Simple Things'];
+		groups.push({ artist: 'Air', title: 'Talkie Walkie', year: 2004 });
+		await run();
+		expect(await titles()).toEqual(['Talkie Walkie']);
+		expect(lastFmCalls).toEqual([]);
+	});
+
+	it('Add of a Last.fm Suggestion puts it on the Wishlist with Desire 2', async () => {
+		similar.Air = ['Zero 7'];
+		topAlbums['Zero 7'] = ['Simple Things'];
+		await run();
+		const [suggestion] = await catalog.listSuggestions(token);
+		await catalog.addSuggestion(token, suggestion.id);
+		expect((await catalog.listWishlist()).items).toMatchObject([
+			{ desire: 2, album: { artist: 'Zero 7', title: 'Simple Things' } }
+		]);
 	});
 });

@@ -32,7 +32,7 @@ import {
 	searchDiscogs,
 	searchTypedCandidates
 } from './lookup';
-import { findStudioAlbums } from './lookup';
+import { findSimilarArtists, findStudioAlbums, findTopAlbums } from './lookup';
 import { MAX_SUGGESTIONS, normalize, oldestUnknown, rankSeeds, type SeedRow } from './suggestions';
 import type {
 	AcquisitionInput,
@@ -64,6 +64,8 @@ export interface CatalogEnv {
 	JWT_SECRET: string;
 	/** Discogs personal access token. Without it, searches skip Discogs. */
 	DISCOGS_TOKEN?: string;
+	/** Last.fm API key. Without it, Suggestions skip Last.fm. */
+	LASTFM_API_KEY?: string;
 }
 
 export interface CatalogOptions {
@@ -84,6 +86,8 @@ const PAGE_USER_AGENT = 'Mozilla/5.0 (X11; Linux x86_64; rv:130.0) Gecko/2010010
 const PAGE_TIMEOUT_MS = 8000;
 /** Marks an Album that was looked up on MusicBrainz and has no match. Null means not looked up yet. */
 const NO_MATCH = '';
+/** Similar Artists tried for one seed Artist, until one has an Album to propose. */
+const MAX_SIMILAR_TRIES = 3;
 
 /** True for a real calendar date written YYYY-MM-DD (2024-02-31 is not one). */
 function isRealDate(value: unknown): boolean {
@@ -944,29 +948,59 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 			const current = await pendingSuggestions();
 			let pending = current.length;
 			const covered = new Set(current.map((s) => normalize(s.artist)));
+			const seedNames = new Set(seeds.map((seed) => normalize(seed.artist)));
+			const save = async (values: typeof suggestions.$inferInsert) => {
+				const saved = await db
+					.insert(suggestions)
+					.values(values)
+					.onConflictDoNothing()
+					.returning({ id: suggestions.id });
+				if (!saved.length) return;
+				pending++;
+				covered.add(normalize(values.artist));
+			};
 			let index = start;
 			for (; index < seeds.length && index < start + size && pending < MAX_SUGGESTIONS; index++) {
 				const { artist } = seeds[index];
-				if (covered.has(normalize(artist))) continue;
-				const pick = oldestUnknown(
-					await findStudioAlbums(artist, intervalMs),
-					await knownTitles(artist)
-				);
-				if (!pick) continue;
-				const saved = await db
-					.insert(suggestions)
-					.values({
-						artist,
-						title: pick.title,
-						releaseYear: pick.releaseYear,
-						musicbrainzId: pick.musicbrainzId,
-						source: 'musicbrainz',
-						reason: `More by ${artist}`,
-						rank: index + 1
-					})
-					.onConflictDoNothing()
-					.returning({ id: suggestions.id });
-				pending += saved.length;
+				const rank = index + 1;
+				if (!covered.has(normalize(artist))) {
+					const pick = oldestUnknown(
+						await findStudioAlbums(artist, intervalMs),
+						await knownTitles(artist)
+					);
+					if (pick) {
+						await save({
+							artist,
+							title: pick.title,
+							releaseYear: pick.releaseYear,
+							musicbrainzId: pick.musicbrainzId,
+							source: 'musicbrainz',
+							reason: `More by ${artist}`,
+							rank
+						});
+					}
+				}
+				const key = env.LASTFM_API_KEY;
+				if (!key || pending >= MAX_SUGGESTIONS) continue;
+				const similar = (await findSimilarArtists(key, artist))
+					.filter((name) => !seedNames.has(normalize(name)) && !covered.has(normalize(name)))
+					.slice(0, MAX_SIMILAR_TRIES);
+				for (const name of similar) {
+					const known = await knownTitles(name);
+					const title = (await findTopAlbums(key, name)).find((t) => !known.has(normalize(t)));
+					if (!title) continue;
+					const match = await findAlbum(name, title, intervalMs).catch(() => null);
+					await save({
+						artist: name,
+						title,
+						releaseYear: match?.releaseYear ?? null,
+						musicbrainzId: match?.musicbrainzId ?? null,
+						source: 'lastfm',
+						reason: `Similar to ${artist}`,
+						rank
+					});
+					break;
+				}
 			}
 			return { pending, next: pending >= MAX_SUGGESTIONS || index >= seeds.length ? null : index };
 		},

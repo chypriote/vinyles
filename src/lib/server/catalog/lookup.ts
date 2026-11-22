@@ -145,6 +145,41 @@ export async function findStudioAlbums(artist: string, intervalMs: number): Prom
 	});
 }
 
+const LASTFM = 'https://ws.audioscrobbler.com/2.0/';
+
+async function lastFm<T>(apiKey: string, params: Record<string, string>): Promise<T> {
+	const url = new URL(LASTFM);
+	for (const [name, value] of Object.entries({ ...params, api_key: apiKey, format: 'json' })) {
+		url.searchParams.set(name, value);
+	}
+	const response = await fetch(url, { headers: { 'User-Agent': USER_AGENT } });
+	if (!response.ok) throw new Error(`Last.fm answered ${response.status}`);
+	const data = (await response.json()) as T & { error?: number; message?: string };
+	if (data.error) throw new Error(`Last.fm: ${data.message ?? data.error}`);
+	return data;
+}
+
+/** Names of the Artists Last.fm finds similar to the Artist, most similar first. */
+export async function findSimilarArtists(apiKey: string, artist: string): Promise<string[]> {
+	const data = await lastFm<{ similarartists?: { artist?: { name: string }[] } }>(apiKey, {
+		method: 'artist.getsimilar',
+		artist,
+		limit: '10'
+	});
+	return (data.similarartists?.artist ?? []).map((a) => a.name);
+}
+
+/** Titles of the Artist's most played Albums on Last.fm, most played first. */
+export async function findTopAlbums(apiKey: string, artist: string): Promise<string[]> {
+	const data = await lastFm<{ topalbums?: { album?: { name: string }[] } }>(apiKey, {
+		method: 'artist.gettopalbums',
+		artist,
+		limit: '5'
+	});
+	// Last.fm names an album it cannot identify "(null)".
+	return (data.topalbums?.album ?? []).map((a) => a.name).filter((name) => name !== '(null)');
+}
+
 type ReleaseGroupHits = {
 	'release-groups'?: {
 		id: string;
