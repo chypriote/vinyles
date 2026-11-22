@@ -108,7 +108,11 @@
 
 <svelte:head><title>Vinyles | Collection</title></svelte:head>
 
-<StickyBar current="collection">
+<StickyBar
+	current="collection"
+	searchActive={search.trim() !== ''}
+	filtersActive={selectedArtists.length > 0}
+>
 	{#snippet chips()}
 		<Chip tone="highlight" label="records" value={String(data.totals.recordCount)} />
 		<Chip tone="success" label="spent" value={formatCents(data.totals.totalSpentCents)} />
@@ -121,12 +125,14 @@
 			<AddAction current="collection" artists={data.artists} stores={data.stores} />
 		{/if}
 	{/snippet}
-	{#snippet controls()}
+	{#snippet searchBox()}
 		<SearchField
 			bind:value={search}
 			label="Search artist or album"
 			placeholder="Search artist or album"
 		/>
+	{/snippet}
+	{#snippet controls()}
 		<ArtistFilter bind:value={selectedArtists} names={artistNames} />
 		<Select bind:value={sort} label="Sort by" options={sorts} />
 		<SortDirection bind:value={direction} />
