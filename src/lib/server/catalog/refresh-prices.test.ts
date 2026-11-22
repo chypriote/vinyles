@@ -119,6 +119,7 @@ describe('Refresh prices', () => {
 		const first = await catalog.refreshPrices(token, item.id);
 		const foundAt = (name: string, view = first) =>
 			Date.parse(view.priceQuotes.find((q) => q.store.name === name)!.foundAt!);
+		expect(first.refreshedAt).toBeDefined();
 		expect(foundAt('Impericon')).toBeGreaterThanOrEqual(before);
 		expect(foundAt('Impericon')).toBeLessThanOrEqual(Date.now());
 
