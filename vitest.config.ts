@@ -17,6 +17,7 @@ export default defineConfig(async () => {
 						TEST_MIGRATIONS: migrations,
 						OWNER_PASSWORD: 'test-password',
 						JWT_SECRET: 'test-jwt-secret',
+						CRON_SECRET: 'test-cron-secret',
 						DISCOGS_TOKEN: 'test-discogs'
 					}
 				}

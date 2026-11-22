@@ -341,6 +341,8 @@ export interface Catalog {
 	// Owner login
 	login(password: string): Promise<LoginResult>;
 	verifyToken(token: string): Promise<boolean>;
+	/** Whether `given` is the secret the scheduled handler sends to the cron route. */
+	verifyCronSecret(given: string): Promise<boolean>;
 
 	// Cover (Owner)
 	/** Candidate images for the Cover of an Album: loaded on request. */

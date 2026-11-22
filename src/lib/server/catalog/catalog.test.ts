@@ -1145,6 +1145,20 @@ describe('Owner login without configuration', () => {
 	});
 });
 
+describe('Cron secret', () => {
+	it('accepts only CRON_SECRET, not JWT_SECRET', async () => {
+		expect(await catalog.verifyCronSecret('test-cron-secret')).toBe(true);
+		expect(await catalog.verifyCronSecret('test-jwt-secret')).toBe(false);
+		expect(await catalog.verifyCronSecret('')).toBe(false);
+	});
+
+	it('accepts nothing when CRON_SECRET is missing', async () => {
+		const noSecret = createCatalog({ ...env, CRON_SECRET: '' }, { lookupIntervalMs: 0 });
+		expect(await noSecret.verifyCronSecret('')).toBe(false);
+		expect(await noSecret.verifyCronSecret('test-cron-secret')).toBe(false);
+	});
+});
+
 describe('Impossible dates', () => {
 	it('refuses them on a Record', async () => {
 		for (const date of ['2024-02-31', '2024-13-45']) {
