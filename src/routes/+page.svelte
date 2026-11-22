@@ -4,6 +4,7 @@
 	import type { WithCoverUrl } from '#lib/covers';
 	import type { RecordView } from '#lib/server/catalog/types';
 	import { formatCents, formatDate } from '#lib/format';
+	import ArtistFilter from '#lib/components/ArtistFilter.svelte';
 	import Button from '#lib/components/Button.svelte';
 	import CoverPicker from '#lib/components/CoverPicker.svelte';
 	import Chip from '#lib/components/Chip.svelte';
@@ -43,7 +44,7 @@
 
 	// Filters are page state, not in the URL. The Catalog applies them, through /api/records.
 	let search = $state('');
-	let artist = $state('');
+	let selectedArtists = $state<string[]>([]);
 	let sort = $state('acquired');
 	let direction = $derived(usualDirection[sort]);
 	let filtered = $state<Row[] | null>(null);
@@ -53,11 +54,7 @@
 			a.localeCompare(b, undefined, { sensitivity: 'base' })
 		)
 	);
-	const artistOptions = $derived([
-		{ value: '', label: `All artists (${artistNames.length})` },
-		...artistNames.map((name) => ({ value: name, label: name }))
-	]);
-	const isFiltering = $derived(search.trim() !== '' || artist !== '');
+	const isFiltering = $derived(search.trim() !== '' || selectedArtists.length > 0);
 	const records = $derived(filtered ?? data.records);
 
 	$effect(() => {
@@ -68,7 +65,7 @@
 		}
 		const query = new SvelteURLSearchParams({ sort, direction });
 		if (search.trim()) query.set('search', search.trim());
-		if (artist) query.set('artist', artist);
+		for (const name of selectedArtists) query.append('artist', name);
 		const controller = new AbortController();
 		const timer = setTimeout(async () => {
 			try {
@@ -86,7 +83,7 @@
 
 	function clearFilters() {
 		search = '';
-		artist = '';
+		selectedArtists = [];
 	}
 
 	let selectedId = $state<number | null>(null);
@@ -135,7 +132,7 @@
 			label="Search artist or album"
 			placeholder="Search artist or album"
 		/>
-		<Select bind:value={artist} label="Artist" options={artistOptions} />
+		<ArtistFilter bind:value={selectedArtists} names={artistNames} />
 		<Select bind:value={sort} label="Sort by" options={sorts} />
 		<Select bind:value={direction} label="Sort order" options={directions} />
 	{/snippet}

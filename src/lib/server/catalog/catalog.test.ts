@@ -372,9 +372,17 @@ describe('Collection list', () => {
 	it('keeps totals for the whole Collection when a filter hides Records', async () => {
 		await addRecord({ artist: 'A', album: 'One', acquisition: await purchase(1000) });
 		await addRecord({ artist: 'B', album: 'Two', acquisition: await purchase(500) });
-		const result = await catalog.listRecords({ artist: 'A' });
+		const result = await catalog.listRecords({ artists: ['A'] });
 		expect(result.records).toHaveLength(1);
 		expect(result.totals).toEqual({ recordCount: 2, totalSpentCents: 1500 });
+	});
+
+	it('filters Records by several Artists at once', async () => {
+		await addRecord({ artist: 'A', album: 'One', acquisition: await purchase(1) });
+		await addRecord({ artist: 'B', album: 'Two', acquisition: await purchase(1) });
+		await addRecord({ artist: 'C', album: 'Three', acquisition: await purchase(1) });
+		const { records } = await catalog.listRecords({ artists: ['A', 'C'], sort: 'album' });
+		expect(records.map((r) => r.album.title)).toEqual(['One', 'Three']);
 	});
 
 	describe('search, filter and sort', () => {
@@ -478,9 +486,9 @@ describe('Collection list', () => {
 		});
 
 		it('filters by exact Artist and combines with search', async () => {
-			expect(await titles({ artist: 'Air' })).toEqual(['Moon Safari', 'Talkie Walkie']);
-			expect(await titles({ artist: 'Air', search: 'talkie' })).toEqual(['Talkie Walkie']);
-			expect(await titles({ artist: 'Ai' })).toEqual([]);
+			expect(await titles({ artists: ['Air'] })).toEqual(['Moon Safari', 'Talkie Walkie']);
+			expect(await titles({ artists: ['Air'], search: 'talkie' })).toEqual(['Talkie Walkie']);
+			expect(await titles({ artists: ['Ai'] })).toEqual([]);
 		});
 	});
 });
@@ -698,7 +706,7 @@ describe('Wishlist', () => {
 			const searched = await catalog.listWishlist({ search: 'TALKIE' });
 			expect(searched.items.map((i) => i.album.title)).toEqual(['Talkie Walkie']);
 			expect(searched.count).toBe(3);
-			expect(await titles({ artist: 'Air', desires: [2, 3] })).toEqual([
+			expect(await titles({ artists: ['Air'], desires: [2, 3] })).toEqual([
 				'Moon Safari',
 				'Talkie Walkie'
 			]);
