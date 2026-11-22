@@ -107,7 +107,7 @@ const own = (artist: string, album: string) =>
 		acquisition: { kind: 'gift', date: '2024-01-01' }
 	});
 
-const want = async (artist: string, album: string, desire: 1 | 2 | 3 = 2) => {
+const want = async (artist: string, album: string, desire: 1 | 2 | 3 | 4 | 5 = 2) => {
 	const added = await catalog.addWishlistItem(token, { artist, album, desire });
 	if (added.status !== 'added') throw new Error();
 	return added.item;
@@ -213,11 +213,11 @@ describe('Suggestions from MusicBrainz', () => {
 		expect(artistSearches).toEqual([]);
 	});
 
-	it('ranks Desire 3 Artists first, then the Artists with the most Records', async () => {
+	it('ranks Desire 5 Artists first, then the Artists with the most Records', async () => {
 		await own('Few', 'A');
 		await own('Many', 'A');
 		await own('Many', 'B');
-		await want('Wanted', 'A', 3);
+		await want('Wanted', 'A', 5);
 		await want('Meh', 'A', 2);
 		for (const artist of ['Few', 'Many', 'Wanted', 'Meh']) {
 			groups.push({ artist, title: 'New', year: 2000 });
@@ -301,13 +301,13 @@ describe('Add and Discard a Suggestion', () => {
 		await run();
 	});
 
-	it('Add creates a Wishlist Item with Desire 2 and removes the Suggestion', async () => {
+	it('Add creates a Wishlist Item with Desire 3 and removes the Suggestion', async () => {
 		const [suggestion] = await catalog.listSuggestions(token);
 		await catalog.addSuggestion(token, suggestion.id);
 		const { items } = await catalog.listWishlist();
 		expect(items).toHaveLength(1);
 		expect(items[0]).toMatchObject({
-			desire: 2,
+			desire: 3,
 			variant: null,
 			priceQuotes: [],
 			album: { artist: 'Air', title: 'Talkie Walkie', releaseYear: 2004 }
@@ -462,14 +462,14 @@ describe('Suggestions from Last.fm', () => {
 		expect(lastFmCalls).toEqual([]);
 	});
 
-	it('Add of a Last.fm Suggestion puts it on the Wishlist with Desire 2', async () => {
+	it('Add of a Last.fm Suggestion puts it on the Wishlist with Desire 3', async () => {
 		similar.Air = ['Zero 7'];
 		topAlbums['Zero 7'] = ['Simple Things'];
 		await run();
 		const [suggestion] = await catalog.listSuggestions(token);
 		await catalog.addSuggestion(token, suggestion.id);
 		expect((await catalog.listWishlist()).items).toMatchObject([
-			{ desire: 2, album: { artist: 'Zero 7', title: 'Simple Things' } }
+			{ desire: 3, album: { artist: 'Zero 7', title: 'Simple Things' } }
 		]);
 	});
 });

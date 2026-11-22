@@ -128,7 +128,8 @@ const clean = (value: string) => value.trim();
 const cleanOrNull = (value: string | null | undefined) => clean(value ?? '') || null;
 const isCents = (value: unknown): value is number =>
 	Number.isInteger(value) && (value as number) >= 0;
-const isDesire = (value: unknown): value is Desire => value === 1 || value === 2 || value === 3;
+const isDesire = (value: unknown): value is Desire =>
+	value === 1 || value === 2 || value === 3 || value === 4 || value === 5;
 
 function required(value: string, what: string) {
 	const cleaned = clean(value);
@@ -912,7 +913,7 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 
 		async addWishlistItem(token, input) {
 			await owner(token);
-			if (!isDesire(input.desire)) throw new Error('Desire is 1, 2 or 3');
+			if (!isDesire(input.desire)) throw new Error('Desire is 1 to 5');
 			const quotes = input.priceQuotes ?? [];
 			await checkQuotes(quotes);
 			if (!input.addAnyway) {
@@ -1030,7 +1031,7 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 
 		async setDesire(token, wishlistItemIds, desire) {
 			await owner(token);
-			if (!isDesire(desire)) throw new Error('Desire is 1, 2 or 3');
+			if (!isDesire(desire)) throw new Error('Desire is 1 to 5');
 			if (!wishlistItemIds.length) return;
 			await db
 				.update(wishlistItems)
@@ -1232,7 +1233,7 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 			}
 			const albumId = await ensureAlbum(suggestion.artist, suggestion.title);
 			await db.batch([
-				db.insert(wishlistItems).values({ albumId, desire: 2 }),
+				db.insert(wishlistItems).values({ albumId, desire: 3 }),
 				db.delete(discardedAlbums).where(eq(discardedAlbums.albumId, albumId)),
 				db.delete(suggestions).where(eq(suggestions.id, id))
 			]);

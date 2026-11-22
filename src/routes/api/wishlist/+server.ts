@@ -13,7 +13,7 @@ export const GET: RequestHandler = async ({ url, platform }) => {
 	const desires = (url.searchParams.get('desires') ?? '')
 		.split(',')
 		.map(Number)
-		.filter((n): n is Desire => n === 1 || n === 2 || n === 3);
+		.filter((n): n is Desire => Number.isInteger(n) && n >= 1 && n <= 5);
 	const { items } = await catalogFromPlatform(platform).listWishlist({
 		search: url.searchParams.get('search') ?? undefined,
 		artists: url.searchParams.getAll('artist'),

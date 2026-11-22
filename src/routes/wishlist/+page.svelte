@@ -2,7 +2,7 @@
 	import { SvelteURLSearchParams } from 'svelte/reactivity';
 	import type { PageProps } from './$types';
 	import type { WithCoverUrl } from '#lib/covers';
-	import type { PriceQuote, Store, WishlistItemView } from '#lib/server/catalog/types';
+	import type { Desire, PriceQuote, Store, WishlistItemView } from '#lib/server/catalog/types';
 	import { formatCents, formatDate } from '#lib/format';
 	import { postAction } from '#lib/forms';
 	import ExternalLinkIcon from '@lucide/svelte/icons/external-link';
@@ -14,8 +14,7 @@
 	import CoverPicker from '#lib/components/CoverPicker.svelte';
 	import CoverGrid from '#lib/components/CoverGrid.svelte';
 	import DesireDots from '#lib/components/DesireDots.svelte';
-	import DesirePicker from '#lib/components/DesirePicker.svelte';
-	import DesireFilter from '#lib/components/DesireFilter.svelte';
+	import DesireSelect from '#lib/components/DesireSelect.svelte';
 	import EmptyState from '#lib/components/EmptyState.svelte';
 	import AddAction from '#lib/components/AddAction.svelte';
 	import LoginAction from '#lib/components/LoginAction.svelte';
@@ -52,7 +51,7 @@
 	let selectedArtists = $state<string[]>([]);
 	let sort = $state('desire');
 	let direction = $derived(usualDirection[sort]);
-	let desires = $state<(1 | 2 | 3)[]>([]);
+	let desires = $state<Desire[]>([]);
 	let filtered = $state<Row[] | null>(null);
 
 	const artistNames = $derived(
@@ -122,18 +121,19 @@
 	let discarding = $state(false);
 	let refreshing = $state(false);
 	let refreshError = $state('');
-	let settingDesire = $state<1 | 2 | 3 | null>(null);
+	let settingDesire = $state(false);
 	let selecting = $state(false);
 	let checked = $state<number[]>([]);
 
-	async function setDesire(ids: number[], desire: 1 | 2 | 3) {
-		settingDesire = desire;
+	async function setDesire(ids: number[], desire: Desire) {
+		settingDesire = true;
 		const outcome = await postAction('?/setDesire', { ids, desire });
-		settingDesire = null;
+		settingDesire = false;
 		return outcome.ok;
 	}
 
-	async function setChecked(desire: 1 | 2 | 3) {
+	async function setChecked(desire: Desire | null) {
+		if (!desire) return;
 		if (await setDesire(checked, desire)) checked = [];
 	}
 
@@ -204,7 +204,12 @@
 			{#if selecting}
 				<span class="text-sm font-extrabold">{checked.length} selected</span>
 				{#if checked.length > 0}
-					<DesirePicker busy={settingDesire} onPick={setChecked} />
+					<DesireSelect
+						label="Set desire of selected"
+						placeholder="Set desire…"
+						disabled={settingDesire}
+						onPick={setChecked}
+					/>
 				{/if}
 			{/if}
 		{/if}
@@ -220,7 +225,12 @@
 		<ArtistFilter bind:value={selectedArtists} names={artistNames} />
 		<Select bind:value={sort} label="Sort by" options={sorts} />
 		<SortDirection bind:value={direction} />
-		<DesireFilter bind:value={desires} />
+		<DesireSelect
+			label="Filter by desire"
+			placeholder="Any desire"
+			value={desires[0] ?? null}
+			onPick={(level) => (desires = level ? [level] : [])}
+		/>
 	{/snippet}
 </StickyBar>
 
@@ -274,17 +284,17 @@
 					<dd class="flex items-center gap-1.5">
 						<DesireDots value={selected.desire} />
 						<span class="font-medium whitespace-nowrap text-muted-foreground">
-							{selected.desire}/3
+							{selected.desire}/5
 						</span>
 					</dd>
 					{#if data.isOwner}
 						<dt class="text-muted-foreground">Set to</dt>
 						<dd>
-							<DesirePicker
+							<DesireSelect
+								label="Set desire"
 								value={selected.desire}
-								busy={settingDesire}
-								compact
-								onPick={(level) => selected && setDesire([selected.id], level)}
+								disabled={settingDesire}
+								onPick={(level) => level && selected && setDesire([selected.id], level)}
 							/>
 						</dd>
 					{/if}

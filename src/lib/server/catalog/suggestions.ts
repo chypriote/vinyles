@@ -28,11 +28,11 @@ export interface SeedRow {
 	maxDesire: number;
 }
 
-/** Artists with a Desire 3 Wishlist Item first, then the Artists with the most Records, then by name. */
+/** Artists with a Desire 5 Wishlist Item first, then the Artists with the most Records, then by name. */
 export function rankSeeds(rows: SeedRow[]): SeedRow[] {
 	return [...rows].sort(
 		(a, b) =>
-			Number(b.maxDesire === 3) - Number(a.maxDesire === 3) ||
+			Number(b.maxDesire === 5) - Number(a.maxDesire === 5) ||
 			b.records - a.records ||
 			a.artist.localeCompare(b.artist, undefined, { sensitivity: 'base' })
 	);
