@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
 import {
 	check,
+	index,
 	integer,
 	primaryKey,
 	sqliteTable,
@@ -45,22 +46,27 @@ export const stores = sqliteTable('store', {
 	productLinksEnabled: integer('product_links_enabled', { mode: 'boolean' }).notNull().default(true)
 });
 
-export const records = sqliteTable('record', {
-	id: integer('id').primaryKey({ autoIncrement: true }),
-	albumId: integer('album_id')
-		.notNull()
-		.references(() => albums.id),
-	variant: text('variant'),
-	acquisitionKind: text('acquisition_kind', { enum: ['purchase', 'gift'] }).notNull(),
-	/** ISO date (YYYY-MM-DD). */
-	acquisitionDate: text('acquisition_date').notNull(),
-	/** Purchase only. */
-	storeId: integer('store_id').references(() => stores.id),
-	/** Purchase only, euro cents. */
-	priceCents: integer('price_cents'),
-	/** Gift only, optional. */
-	giver: text('giver')
-});
+export const records = sqliteTable(
+	'record',
+	{
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		albumId: integer('album_id')
+			.notNull()
+			.references(() => albums.id),
+		variant: text('variant'),
+		acquisitionKind: text('acquisition_kind', { enum: ['purchase', 'gift'] }).notNull(),
+		/** ISO date (YYYY-MM-DD). */
+		acquisitionDate: text('acquisition_date').notNull(),
+		/** Purchase only. */
+		storeId: integer('store_id').references(() => stores.id),
+		/** Purchase only, euro cents. */
+		priceCents: integer('price_cents'),
+		/** Gift only, optional. */
+		giver: text('giver')
+	},
+	// Without it, every "is this Album in use" check scans all Records.
+	(t) => [index('record_album_id_idx').on(t.albumId)]
+);
 
 export const wishlistItems = sqliteTable(
 	'wishlist_item',
@@ -74,7 +80,10 @@ export const wishlistItems = sqliteTable(
 		/** When the last Refresh ran, whatever its result. Null: never. */
 		refreshedAt: text('refreshed_at')
 	},
-	(t) => [check('wishlist_item_desire_range', sql`${t.desire} BETWEEN 1 AND 5`)]
+	(t) => [
+		check('wishlist_item_desire_range', sql`${t.desire} BETWEEN 1 AND 5`),
+		index('wishlist_item_album_id_idx').on(t.albumId)
+	]
 );
 
 /** Albums the Owner discarded: Suggestions never propose them. */
