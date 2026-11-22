@@ -17,10 +17,11 @@
 	const levels = [1, 2, 3] as const;
 </script>
 
-<span class="flex flex-wrap gap-1.5">
+<span class={compact ? 'flex gap-1' : 'flex flex-wrap gap-1.5'}>
 	{#each levels as level (level)}
 		<Button
 			size={compact ? 'sm' : 'default'}
+			class={compact ? 'px-2' : undefined}
 			loading={busy === level}
 			disabled={busy !== null || value === level}
 			onclick={() => onPick(level)}
