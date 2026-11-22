@@ -766,11 +766,77 @@ describe('Wishlist', () => {
 			album: 'Moon Safari',
 			variant: null
 		});
-		expect(edited.id).toBe(added.item.id);
-		expect(edited.album.title).toBe('Moon Safari');
-		expect(edited.variant).toBeNull();
-		expect(edited.desire).toBe(3);
-		expect((await catalog.listWishlist()).items).toEqual([edited]);
+		if (edited.status !== 'edited') throw new Error();
+		expect(edited.item.id).toBe(added.item.id);
+		expect(edited.item.album.title).toBe('Moon Safari');
+		expect(edited.item.variant).toBeNull();
+		expect(edited.item.desire).toBe(3);
+		expect((await catalog.listWishlist()).items).toEqual([edited.item]);
+	});
+
+	describe('changing the Album of a Wishlist Item', () => {
+		async function itemWithPrices() {
+			const added = await catalog.addWishlistItem(token, {
+				artist: 'Air',
+				album: 'Moon Safari',
+				desire: 2,
+				priceQuotes: [{ storeId: await storeId(OFFICIAL), priceCents: 3000 }]
+			});
+			if (added.status !== 'added') throw new Error();
+			const fnac = (await catalog.addStore(token, { name: 'Fnac' })).id;
+			await catalog.setProductLink(token, {
+				wishlistItemId: added.item.id,
+				storeId: fnac,
+				url: 'https://www.fnac.com/air'
+			});
+			await env.DB.prepare('UPDATE wishlist_item SET refreshed_at = ? WHERE id = ?')
+				.bind('2026-01-01T00:00:00.000Z', added.item.id)
+				.run();
+			return added.item;
+		}
+
+		it('clears its quotes and links and resets refreshedAt', async () => {
+			const item = await itemWithPrices();
+			const edited = await catalog.editWishlistItem(token, {
+				id: item.id,
+				artist: 'Air',
+				album: 'Talkie Walkie'
+			});
+			if (edited.status !== 'edited') throw new Error();
+			expect(edited.item.album.title).toBe('Talkie Walkie');
+			expect(edited.item.priceQuotes).toEqual([]);
+			expect(edited.item.productLinks).toEqual([]);
+			expect(edited.item.refreshedAt).toBeUndefined();
+		});
+
+		it('keeps them when only the variant changes', async () => {
+			const item = await itemWithPrices();
+			const edited = await catalog.editWishlistItem(token, {
+				id: item.id,
+				artist: 'Air',
+				album: 'Moon Safari',
+				variant: 'Blue'
+			});
+			if (edited.status !== 'edited') throw new Error();
+			expect(edited.item.priceQuotes).toHaveLength(1);
+			expect(edited.item.productLinks).toHaveLength(1);
+			expect(edited.item.refreshedAt).toBe('2026-01-01T00:00:00.000Z');
+		});
+
+		it('warns "already owned" for an owned Album, and changes it only with addAnyway', async () => {
+			const item = await itemWithPrices();
+			const record = await addRecord({ artist: 'Air', album: 'Talkie Walkie' });
+			const before = (await catalog.listWishlist()).items;
+			const input = { id: item.id, artist: 'Air', album: 'Talkie Walkie' };
+			expect(await catalog.editWishlistItem(token, input)).toEqual({
+				status: 'already-owned',
+				records: [record]
+			});
+			expect((await catalog.listWishlist()).items).toEqual(before);
+			const forced = await catalog.editWishlistItem(token, { ...input, addAnyway: true });
+			expect(forced.status).toBe('edited');
+			expect((await catalog.listWishlist()).items[0].album.title).toBe('Talkie Walkie');
+		});
 	});
 
 	it('refuses to edit a Wishlist Item that does not exist', async () => {

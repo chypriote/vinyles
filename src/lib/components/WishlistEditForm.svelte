@@ -22,22 +22,33 @@
 	/* svelte-ignore state_referenced_locally */
 	let variant = $state(item.variant ?? '');
 	let error = $state<string | null>(null);
+	let alreadyOwned = $state(false);
 	let busy = $state(false);
+	let addingAnyway = $state(false);
 
 	const listId = $props.id();
 
-	async function submit(event: SubmitEvent) {
-		event.preventDefault();
+	async function save(addAnyway: boolean) {
 		busy = true;
+		addingAnyway = addAnyway;
 		const outcome = await postAction('?/editWishlistItem', {
 			id: item.id,
 			artist,
 			album,
-			variant: variant.trim() || null
+			variant: variant.trim() || null,
+			addAnyway
 		});
 		busy = false;
-		if (outcome.ok) onDone();
-		else error = outcome.error;
+		if (!outcome.ok) error = outcome.error;
+		else if (outcome.alreadyOwned) alreadyOwned = true;
+		else onDone();
+	}
+
+	function submit(event: SubmitEvent) {
+		event.preventDefault();
+		error = null;
+		alreadyOwned = false;
+		void save(false);
 	}
 </script>
 
@@ -50,9 +61,26 @@
 	</div>
 	<Field label="Album" required bind:value={album} />
 	<Field label="Variant" bind:value={variant} />
+	{#if alreadyOwned}
+		<div class="flex flex-col gap-2 rounded-xl bg-muted p-3" role="status">
+			<p class="text-sm font-medium">Already owned</p>
+			<div>
+				<Button disabled={busy} loading={busy && addingAnyway} onclick={() => save(true)}>
+					Save anyway
+				</Button>
+			</div>
+		</div>
+	{/if}
 	{#if error}<p class="text-sm font-medium text-foreground" role="alert">! {error}</p>{/if}
 	<div class="flex flex-wrap gap-2">
-		<Button intent="success" type="submit" loading={busy}>Save</Button>
+		<Button
+			intent="success"
+			type="submit"
+			disabled={busy && addingAnyway}
+			loading={busy && !addingAnyway}
+		>
+			Save
+		</Button>
 		<Button onclick={onDone}>Cancel</Button>
 	</div>
 </form>

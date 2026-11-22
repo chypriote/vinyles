@@ -851,14 +851,36 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 
 		async editWishlistItem(token, input) {
 			await owner(token);
-			const [item] = await db.select().from(wishlistItems).where(eq(wishlistItems.id, input.id));
+			const [item] = await loadWishlist(input.id);
 			if (!item) throw new Error('Wishlist Item not found');
+			const changed =
+				item.album.artist !== clean(input.artist) || item.album.title !== clean(input.album);
+			if (changed && !input.addAnyway) {
+				const owned = (await loadRecords()).filter(
+					(r) => r.album.artist === clean(input.artist) && r.album.title === clean(input.album)
+				);
+				if (owned.length) return { status: 'already-owned', records: owned };
+			}
 			const albumId = await ensureAlbum(input.artist, input.album);
-			await db
+			const update = db
 				.update(wishlistItems)
-				.set({ albumId, variant: cleanOrNull(input.variant) })
+				.set({
+					albumId,
+					variant: cleanOrNull(input.variant),
+					...(changed ? { refreshedAt: null } : {})
+				})
 				.where(eq(wishlistItems.id, input.id));
-			return (await loadWishlist(input.id))[0];
+			if (changed) {
+				await db.batch([
+					update,
+					db.delete(priceQuotes).where(eq(priceQuotes.wishlistItemId, input.id)),
+					db.delete(productLinks).where(eq(productLinks.wishlistItemId, input.id)),
+					db.delete(discardedAlbums).where(eq(discardedAlbums.albumId, albumId))
+				]);
+			} else {
+				await update;
+			}
+			return { status: 'edited', item: (await loadWishlist(input.id))[0] };
 		},
 
 		async gotIt(token, input) {
