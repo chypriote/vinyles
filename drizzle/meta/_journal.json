@@ -57,6 +57,13 @@
       "when": 1795353168619,
       "tag": "0007_price_quote_found_at",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1795368762510,
+      "tag": "0008_clear_fetched_prices",
+      "breakpoints": true
     }
   ]
 }

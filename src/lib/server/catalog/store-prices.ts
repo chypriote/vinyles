@@ -144,6 +144,11 @@ function hasWords(name: string[], phrase: string) {
 	);
 }
 
+/** True when the product name says vinyl or LP. A CD, a cassette or merch does not. */
+export function isVinyl(name: string): boolean {
+	return words(name).some((word) => word === 'vinyl' || /^\d*lp$/.test(word));
+}
+
 /**
  * The cheapest offer whose name has the words of the Artist and of the Album, in any order.
  * A typo of one letter in a long word is tolerated. The Variant is ignored.
