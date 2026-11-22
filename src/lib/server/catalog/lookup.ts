@@ -102,7 +102,7 @@ const CAA = 'https://coverartarchive.org';
 const MAX_RELEASE_CANDIDATES = 12;
 const MAX_SEARCH_CANDIDATES = 5;
 
-export type CoverSource = 'release' | 'release-group' | 'discogs';
+export type CoverSource = 'release' | 'release-group' | 'discogs' | 'deezer';
 
 export interface FoundCandidate {
 	id: string;
@@ -113,7 +113,7 @@ export interface FoundCandidate {
 	year?: number | null;
 }
 
-const imageUrl = (source: Exclude<CoverSource, 'discogs'>, id: string, size: 250 | 500) =>
+const imageUrl = (source: 'release' | 'release-group', id: string, size: 250 | 500) =>
 	`${CAA}/${source}/${encodeURIComponent(id)}/front-${size}`;
 
 async function musicBrainz<T>(url: URL, intervalMs: number): Promise<T> {
@@ -303,6 +303,38 @@ export async function searchDiscogs(text: string, token: string): Promise<FoundC
 	});
 }
 
+const MAX_DEEZER_CANDIDATES = 6;
+
+/** Deezer album search hits with an image (500 px). Needs no key. Throws when Deezer fails. */
+export async function searchDeezer(text: string): Promise<FoundCandidate[]> {
+	const url = new URL('https://api.deezer.com/search/album');
+	url.searchParams.set('q', text);
+	url.searchParams.set('limit', String(MAX_DEEZER_CANDIDATES));
+	const response = await fetch(url, { headers: { 'User-Agent': USER_AGENT } });
+	if (!response.ok) throw new Error(`Deezer answered ${response.status}`);
+	const data = (await response.json()) as {
+		data?: {
+			title: string;
+			cover_medium?: string;
+			cover_big?: string;
+			artist?: { name: string };
+		}[];
+	};
+	return (data.data ?? []).flatMap((hit) =>
+		hit.cover_medium && hit.cover_big
+			? [
+					{
+						id: hit.cover_big,
+						source: 'deezer' as const,
+						imageUrl: hit.cover_medium,
+						artist: hit.artist?.name ?? '',
+						title: hit.title
+					}
+				]
+			: []
+	);
+}
+
 /** The image of a candidate. Null when it has none. */
 export function findCandidateImage(
 	source: CoverSource,
@@ -310,8 +342,16 @@ export function findCandidateImage(
 	discogsToken?: string,
 	maxBytes?: number
 ): Promise<FoundCover | null> {
-	if (source !== 'discogs') return fetchCover(imageUrl(source, id, 500), {}, maxBytes);
+	if (source === 'release' || source === 'release-group') {
+		return fetchCover(imageUrl(source, id, 500), {}, maxBytes);
+	}
 	const url = new URL(id);
+	if (source === 'deezer') {
+		if (url.protocol !== 'https:' || !url.hostname.endsWith('.dzcdn.net')) {
+			throw new Error('Unknown candidate');
+		}
+		return fetchCover(url.href, {}, maxBytes);
+	}
 	if (url.protocol !== 'https:' || url.host !== DISCOGS_IMAGE_HOST || !discogsToken) {
 		throw new Error('Unknown candidate');
 	}

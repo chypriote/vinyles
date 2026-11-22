@@ -30,7 +30,7 @@ Nico's vinyl Collection and Wishlist as a wall of Covers. SvelteKit (Svelte 5) o
    - `OWNER_PASSWORD`: the one Owner password. `npx wrangler secret put OWNER_PASSWORD`
    - `JWT_SECRET`: key that signs the Owner login token. Use a long random value. `npx wrangler secret put JWT_SECRET`
    - `CRON_SECRET`: bearer value the cron trigger sends to `/api/cron/refresh-prices`. Use a long random value, different from `JWT_SECRET`. `npx wrangler secret put CRON_SECRET`
-   - `DISCOGS_TOKEN` (optional): Discogs personal access token (free; discogs.com > Settings > Developers > Generate new token). Adds Discogs covers to the cover search. `npx wrangler secret put DISCOGS_TOKEN`
+   - `DISCOGS_TOKEN` (optional): Discogs personal access token (free; discogs.com > Settings > Developers > Generate new token). Adds Discogs covers to the cover search (the first list and typed searches). Deezer needs no key. `npx wrangler secret put DISCOGS_TOKEN`
    - `LASTFM_API_KEY` (optional): Last.fm API key (free; last.fm/api/account/create). Adds Suggestions of similar Artists on the admin page. `npx wrangler secret put LASTFM_API_KEY`
 
 Every 6 hours a cron trigger (`wrangler.jsonc`) refreshes the prices of the 5 Wishlist Items never refreshed or refreshed longest ago, if that was over 14 days ago. `npm run build` adds the `scheduled` handler (`scripts/add-cron-handler.mjs`), because the adapter builds a Worker without one.

@@ -1,7 +1,13 @@
 import { env } from 'cloudflare:workers';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createCatalog, UnauthorizedError } from './index';
-import type { AcquisitionInput, AddRecordInput, Catalog, RecordView } from './types';
+import type {
+	AcquisitionInput,
+	AddRecordInput,
+	Catalog,
+	CoverCandidate,
+	RecordView
+} from './types';
 
 let catalog: Catalog;
 let token: string;
@@ -46,6 +52,7 @@ let fakeAlbums: FakeAlbum[];
 let calls: FakeCall[];
 let failMusicBrainz: boolean;
 let failDiscogs: boolean;
+let failDeezer: boolean;
 let endlessPulls = 0;
 
 function installFakeWeb() {
@@ -53,6 +60,7 @@ function installFakeWeb() {
 	calls = [];
 	failMusicBrainz = false;
 	failDiscogs = false;
+	failDeezer = false;
 	vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
 		const request = new Request(input as RequestInfo, init);
 		const url = new URL(request.url);
@@ -100,6 +108,23 @@ function installFakeWeb() {
 					{ title: 'No Image', year: '1999', thumb: '', cover_image: '' }
 				]
 			});
+		}
+		if (url.host === 'api.deezer.com') {
+			if (failDeezer) return new Response('unavailable', { status: 503 });
+			return Response.json({
+				data: [
+					{
+						title: 'Moon Safari',
+						cover_medium: 'https://cdn-images.dzcdn.net/m.jpg',
+						cover_big: 'https://cdn-images.dzcdn.net/b.jpg',
+						artist: { name: 'Air' }
+					},
+					{ title: 'No Image', cover_medium: '', cover_big: '', artist: { name: 'Air' } }
+				]
+			});
+		}
+		if (url.host === 'cdn-images.dzcdn.net') {
+			return new Response('deezer-bytes', { headers: { 'content-type': 'image/jpeg' } });
 		}
 		if (url.host === 'images.example') {
 			if (url.pathname === '/big.png') {
@@ -1342,6 +1367,9 @@ describe('Changing the Cover of an Album', () => {
 		...over
 	});
 
+	const fromMusicBrainz = (c: { source: string }) =>
+		c.source !== 'deezer' && c.source !== 'discogs';
+
 	describe('candidates', () => {
 		it('are the front images of the releases of the matched release group, at most 12', async () => {
 			const releases = Array.from({ length: 15 }, (_, i) => ({
@@ -1351,7 +1379,9 @@ describe('Changing the Cover of an Album', () => {
 			fakeAlbums.push(group({ releases }));
 			const record = await addRecord({ artist: 'Air', album: 'Moon Safari' });
 
-			const candidates = await catalog.listCoverCandidates(token, record.album.id);
+			const candidates = (await catalog.listCoverCandidates(token, record.album.id)).filter(
+				fromMusicBrainz
+			);
 			expect(candidates).toHaveLength(12);
 			expect(candidates.map((c) => c.id)).toEqual(
 				releases
@@ -1372,7 +1402,9 @@ describe('Changing the Cover of an Album', () => {
 			const record = await addRecord({ artist: 'Air', album: 'Moon Safari' });
 			expect(record.album.releaseYear).toBeNull();
 
-			const candidates = await catalog.listCoverCandidates(token, record.album.id);
+			const candidates = (await catalog.listCoverCandidates(token, record.album.id)).filter(
+				fromMusicBrainz
+			);
 			expect(candidates).toHaveLength(5);
 			expect(candidates[2]).toMatchObject({
 				id: 'mb-2',
@@ -1388,7 +1420,9 @@ describe('Changing the Cover of an Album', () => {
 			fakeAlbums.push(group({ releases: [{ id: 'rel-none', cover: null }] }));
 			const record = await addRecord({ artist: 'Air', album: 'Moon Safari' });
 
-			const candidates = await catalog.listCoverCandidates(token, record.album.id);
+			const candidates = (await catalog.listCoverCandidates(token, record.album.id)).filter(
+				fromMusicBrainz
+			);
 			expect(candidates.map((c) => [c.source, c.id])).toEqual([['release-group', 'mb-air']]);
 		});
 
@@ -1447,11 +1481,17 @@ describe('Changing the Cover of an Album', () => {
 			]);
 		});
 
-		it('add Discogs hits with an image to a typed search, and survive a Discogs failure', async () => {
+		it('add Deezer and Discogs hits with an image to a typed search and to the first list', async () => {
 			fakeAlbums.push(group({ cover: 'c' }));
 			const found = await catalog.searchCoverCandidates(token, 'Air Moon Safari');
-			expect(found.map((c) => c.source)).toEqual(['release-group', 'discogs']);
+			expect(found.map((c) => c.source)).toEqual(['release-group', 'deezer', 'discogs']);
 			expect(found[1]).toMatchObject({
+				id: 'https://cdn-images.dzcdn.net/b.jpg',
+				imageUrl: 'https://cdn-images.dzcdn.net/m.jpg',
+				artist: 'Air',
+				title: 'Moon Safari'
+			});
+			expect(found[2]).toMatchObject({
 				id: 'https://i.discogs.com/full.jpg',
 				imageUrl: 'https://i.discogs.com/thumb.jpg',
 				artist: 'Air',
@@ -1461,9 +1501,20 @@ describe('Changing the Cover of an Album', () => {
 			const discogs = calls.find((c) => c.host === 'api.discogs.com')!;
 			expect(discogs.url.searchParams.get('type')).toBe('master');
 
+			const record = await addRecord({ artist: 'Air', album: 'Moon Safari' });
+			const first = await catalog.listCoverCandidates(token, record.album.id);
+			expect(first.map((c) => c.source)).toContain('deezer');
+			expect(first.map((c) => c.source)).toContain('discogs');
+		});
+
+		it('survive a Deezer or a Discogs failure', async () => {
+			fakeAlbums.push(group({ cover: 'c' }));
 			failDiscogs = true;
-			const again = await catalog.searchCoverCandidates(token, 'Air Moon Safari');
-			expect(again.map((c) => c.source)).toEqual(['release-group']);
+			const noDiscogs = await catalog.searchCoverCandidates(token, 'Air Moon Safari');
+			expect(noDiscogs.map((c) => c.source)).toEqual(['release-group', 'deezer']);
+			failDeezer = true;
+			const none = await catalog.searchCoverCandidates(token, 'Air Moon Safari');
+			expect(none.map((c) => c.source)).toEqual(['release-group']);
 		});
 
 		it('make at most one MusicBrainz request per interval', async () => {
@@ -1855,15 +1906,19 @@ describe('Cover quality check', () => {
 					{ id: 'rel-none', cover: null }
 				]
 			});
-			const rate = (
-				candidateId: string,
-				source: 'release' | 'release-group' | 'discogs' = 'release'
-			) => catalog.rateCoverCandidate(token, { candidateId, source });
+			const rate = (candidateId: string, source: CoverCandidate['source'] = 'release') =>
+				catalog.rateCoverCandidate(token, { candidateId, source });
 			expect(await rate('mb-air', 'release-group')).toEqual({ reason: null });
 			expect(await rate('rel-small')).toEqual({
 				reason: 'Too small: 300×300 px (at least 400 px)'
 			});
 			expect(await rate('rel-none')).toEqual({ reason: 'No cover' });
+			expect(await rate('https://cdn-images.dzcdn.net/b.jpg', 'deezer')).toEqual({
+				reason: 'Unreadable image'
+			});
+			await expect(rate('https://evil.example/b.jpg', 'deezer')).rejects.toThrow(
+				'Unknown candidate'
+			);
 			expect(await rate('https://i.discogs.com/full.jpg', 'discogs')).toEqual({
 				reason: 'Unreadable image'
 			});

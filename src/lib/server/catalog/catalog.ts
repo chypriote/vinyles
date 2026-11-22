@@ -30,8 +30,10 @@ import {
 	findReleaseCandidates,
 	readBody,
 	searchCandidates,
+	searchDeezer,
 	searchDiscogs,
-	searchTypedCandidates
+	searchTypedCandidates,
+	type FoundCandidate
 } from './lookup';
 import { findSimilarArtists, findStudioAlbums, findTopAlbums } from './lookup';
 import {
@@ -91,7 +93,7 @@ type BatchStatements = Parameters<Db['batch']>[0];
 const HEADER_BYTES = 64 * 1024;
 const UPLOAD_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const MAX_UPLOAD_BYTES = 2 * 1024 * 1024;
-const CANDIDATE_SOURCES: string[] = ['release', 'release-group', 'discogs'];
+const CANDIDATE_SOURCES: string[] = ['release', 'release-group', 'discogs', 'deezer'];
 const MAX_PAGE_BYTES = 5 * 1024 * 1024;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 /** Browser-like: some Stores refuse a script. */
@@ -611,6 +613,15 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 		return new Set(rows.map((row) => albumKey(row.artist, row.title)));
 	}
 
+	/** Deezer and, with a token, Discogs hits for a text. A failing source must not hide the others. */
+	async function otherSources(text: string): Promise<FoundCandidate[]> {
+		const [deezer, discogs] = await Promise.all([
+			searchDeezer(text).catch(() => []),
+			env.DISCOGS_TOKEN ? searchDiscogs(text, env.DISCOGS_TOKEN).catch(() => []) : []
+		]);
+		return [...deezer, ...discogs];
+	}
+
 	/** A Suggestion shows while its Album is not owned, not on the Wishlist and not Discarded. */
 	async function pendingSuggestions() {
 		const [all, taken] = await Promise.all([
@@ -749,21 +760,21 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 					.where(eq(albums.id, albumId))
 			)[0];
 			if (!album) throw new Error('Album not found');
+			let musicBrainz: FoundCandidate[] = [];
 			if (album.musicbrainzId && album.musicbrainzId !== NO_MATCH) {
-				const releases = await findReleaseCandidates(album.musicbrainzId, intervalMs);
-				if (releases.length) return releases;
+				musicBrainz = await findReleaseCandidates(album.musicbrainzId, intervalMs);
 			}
-			return searchCandidates(album.artist, album.title, intervalMs);
+			if (!musicBrainz.length) {
+				musicBrainz = await searchCandidates(album.artist, album.title, intervalMs);
+			}
+			return [...musicBrainz, ...(await otherSources(`${album.artist} ${album.title}`))];
 		},
 
 		async searchCoverCandidates(token, query) {
 			await owner(token);
 			if (!/[\p{L}\p{N}]/u.test(query)) return [];
 			const musicBrainz = await searchTypedCandidates(query, intervalMs);
-			if (!env.DISCOGS_TOKEN) return musicBrainz;
-			// A Discogs failure must not hide the MusicBrainz hits.
-			const discogs = await searchDiscogs(query, env.DISCOGS_TOKEN).catch(() => []);
-			return [...musicBrainz, ...discogs];
+			return [...musicBrainz, ...(await otherSources(query))];
 		},
 
 		async rateCoverCandidate(token, input) {
