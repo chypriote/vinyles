@@ -1813,6 +1813,35 @@ describe('Cover quality check', () => {
 		await expect(catalog.listFailingCovers('bad')).rejects.toThrow(UnauthorizedError);
 	});
 
+	describe('of an image to upload', () => {
+		it('rates an upload and an address with the same check as a stored Cover', async () => {
+			expect(
+				await catalog.rateCoverUpload(token, { body: png(500, 500), contentType: 'image/png' })
+			).toEqual({ reason: null });
+			expect(
+				await catalog.rateCoverUpload(token, { body: png(300, 300), contentType: 'image/png' })
+			).toEqual({ reason: 'Too small: 300×300 px (at least 400 px)' });
+			expect(
+				await catalog.rateCoverUrl(token, { url: 'https://images.example/cover.webp' })
+			).toEqual({ reason: 'Unreadable image' });
+		});
+
+		it('refuses what an upload would refuse, and a visitor', async () => {
+			await expect(
+				catalog.rateCoverUpload(token, { body: png(500, 500), contentType: 'image/svg+xml' })
+			).rejects.toThrow('JPEG, PNG or WebP');
+			await expect(catalog.rateCoverUrl(token, { url: 'nonsense' })).rejects.toThrow(
+				'not a web address'
+			);
+			await expect(
+				catalog.rateCoverUpload('bad', { body: png(500, 500), contentType: 'image/png' })
+			).rejects.toThrow();
+			await expect(
+				catalog.rateCoverUrl('bad', { url: 'https://images.example/cover.webp' })
+			).rejects.toThrow();
+		});
+	});
+
 	describe('of a cover search result', () => {
 		it('rates a candidate image with the same check as a stored Cover', async () => {
 			fakeAlbums.push({

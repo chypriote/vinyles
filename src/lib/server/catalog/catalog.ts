@@ -178,11 +178,40 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 	}
 
 	/** Checks an image from the Owner (type, size, Album), then makes it the Cover. */
-	async function saveUpload(albumId: number, body: ArrayBuffer, contentType: string) {
+	function checkUpload(body: ArrayBuffer, contentType: string) {
 		if (!UPLOAD_TYPES.includes(contentType)) throw new Error('Use a JPEG, PNG or WebP image');
 		if (body.byteLength === 0 || body.byteLength > MAX_UPLOAD_BYTES) {
 			throw new Error('The image must be under 2 MB');
 		}
+	}
+
+	/** The quality check on an image in memory. */
+	function rateImage(body: ArrayBuffer): { reason: string | null } {
+		const header = new Uint8Array(body, 0, Math.min(HEADER_BYTES, body.byteLength));
+		return { reason: checkCoverImage(body.byteLength, header) };
+	}
+
+	/** Fetches the image at an http(s) address, with the same checks as an upload. */
+	async function fetchImage(address: string) {
+		let url: URL;
+		try {
+			url = new URL(address);
+		} catch {
+			throw new Error('This is not a web address');
+		}
+		if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+			throw new Error('Use an http or https address');
+		}
+		const response = await fetch(url, { headers: { 'User-Agent': 'vinyles/0.1' } });
+		if (!response.ok) throw new Error(`The address answered ${response.status}`);
+		const body = await readBody(response, MAX_UPLOAD_BYTES);
+		if (!body) throw new Error('The image must be under 2 MB');
+		const contentType = (response.headers.get('content-type') ?? '').split(';')[0].trim();
+		return { body: body.buffer as ArrayBuffer, contentType };
+	}
+
+	async function saveUpload(albumId: number, body: ArrayBuffer, contentType: string) {
+		checkUpload(body, contentType);
 		const album = (
 			await db.select({ id: albums.id }).from(albums).where(eq(albums.id, albumId))
 		)[0];
@@ -774,21 +803,21 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 
 		async uploadCoverFromUrl(token, input) {
 			await owner(token);
-			let url: URL;
-			try {
-				url = new URL(input.url);
-			} catch {
-				throw new Error('This is not a web address');
-			}
-			if (url.protocol !== 'https:' && url.protocol !== 'http:') {
-				throw new Error('Use an http or https address');
-			}
-			const response = await fetch(url, { headers: { 'User-Agent': 'vinyles/0.1' } });
-			if (!response.ok) throw new Error(`The address answered ${response.status}`);
-			const body = await readBody(response, MAX_UPLOAD_BYTES);
-			if (!body) throw new Error('The image must be under 2 MB');
-			const contentType = (response.headers.get('content-type') ?? '').split(';')[0].trim();
-			await saveUpload(input.albumId, body.buffer as ArrayBuffer, contentType);
+			const image = await fetchImage(input.url);
+			await saveUpload(input.albumId, image.body, image.contentType);
+		},
+
+		async rateCoverUpload(token, input) {
+			await owner(token);
+			checkUpload(input.body, input.contentType);
+			return rateImage(input.body);
+		},
+
+		async rateCoverUrl(token, input) {
+			await owner(token);
+			const image = await fetchImage(input.url);
+			checkUpload(image.body, image.contentType);
+			return rateImage(image.body);
 		},
 
 		async login(password) {

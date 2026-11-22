@@ -119,6 +119,40 @@
 	let urlText = $state('');
 	let urlInput = $state<HTMLInputElement | null>(null);
 
+	/** The quality check of an uploaded or addressed image, run before it can be saved. */
+	type Check =
+		| { state: 'checking' }
+		| { state: 'done'; reason: string | null }
+		| { state: 'error'; message: string };
+	let check = $state<Check | null>(null);
+	let latestCheck = 0;
+
+	async function assess(request: Promise<Response>) {
+		const mine = ++latestCheck;
+		check = { state: 'checking' };
+		try {
+			const response = await request;
+			const body = (await response.json()) as { reason?: string | null; error?: string };
+			if (mine !== latestCheck) return;
+			check = response.ok
+				? { state: 'done', reason: body.reason ?? null }
+				: { state: 'error', message: body.error ?? 'Could not check the quality' };
+		} catch {
+			if (mine === latestCheck) check = { state: 'error', message: 'Could not check the quality' };
+		}
+	}
+
+	/** What the dialog shows: a rated candidate reuses its search rating. */
+	const shownCheck = $derived<Check | null>(
+		picked
+			? key(picked) in ratings
+				? { state: 'done', reason: ratings[key(picked)] }
+				: null
+			: check
+	);
+	/** An uploaded or addressed image can only be saved once its quality is known. */
+	const saveBlocked = $derived(!picked && check?.state !== 'done');
+
 	async function toggleUrl() {
 		urlOpen = !urlOpen;
 		if (!urlOpen) return;
@@ -139,6 +173,13 @@
 		remoteUrl = address;
 		preview = { url: address, label: address, source: 'Web address' };
 		confirmOpen = true;
+		assess(
+			fetch(`/api/albums/${albumId}/cover-url/rating`, {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ url: address })
+			})
+		);
 	}
 
 	async function chooseFile() {
@@ -152,6 +193,13 @@
 			remoteUrl = null;
 			preview = { url: URL.createObjectURL(upload), label: file.name, source: 'Upload' };
 			confirmOpen = true;
+			assess(
+				fetch(`/api/albums/${albumId}/cover-upload/rating`, {
+					method: 'POST',
+					headers: { 'content-type': upload.type },
+					body: upload
+				})
+			);
 		} catch {
 			pickError = 'Could not read this image';
 		} finally {
@@ -166,6 +214,7 @@
 
 	function choose(candidate: CoverCandidate) {
 		picked = candidate;
+		check = null;
 		upload = null;
 		remoteUrl = null;
 		preview = {
@@ -342,6 +391,7 @@
 	text="It replaces the cover of every record and wishlist item of this album."
 	actionLabel="Use this cover"
 	onConfirm={useCover}
+	actionDisabled={saveBlocked}
 >
 	{#if preview}
 		<figure class="flex flex-col items-center gap-1">
@@ -353,6 +403,17 @@
 			<figcaption class="max-w-72 text-center text-sm">
 				{#if preview.label}<span class="block font-bold break-words">{preview.label}</span>{/if}
 				<span class="block text-xs text-muted-foreground">{preview.source}</span>
+				{#if shownCheck?.state === 'checking'}
+					<span class="block text-xs text-muted-foreground" role="status">Checking quality…</span>
+				{:else if shownCheck?.state === 'done'}
+					<span
+						class="block text-xs {shownCheck.reason ? 'text-destructive' : 'text-muted-foreground'}"
+					>
+						{shownCheck.reason ?? 'Good quality'}
+					</span>
+				{:else if shownCheck?.state === 'error'}
+					<span class="block text-xs text-destructive" role="alert">{shownCheck.message}</span>
+				{/if}
 			</figcaption>
 		</figure>
 	{/if}

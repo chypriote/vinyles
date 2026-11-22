@@ -8,6 +8,7 @@
 		text,
 		actionLabel,
 		onConfirm,
+		actionDisabled = false,
 		children
 	}: {
 		open?: boolean;
@@ -15,6 +16,7 @@
 		text: string;
 		actionLabel: string;
 		onConfirm: () => void;
+		actionDisabled?: boolean;
 		/** Shown between the text and the buttons. */
 		children?: Snippet;
 	} = $props();
@@ -29,7 +31,9 @@
 		{@render children?.()}
 		<AlertDialog.Footer>
 			<AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
-			<AlertDialog.Action onclick={onConfirm}>{actionLabel}</AlertDialog.Action>
+			<AlertDialog.Action disabled={actionDisabled} onclick={onConfirm}>
+				{actionLabel}
+			</AlertDialog.Action>
 		</AlertDialog.Footer>
 	</AlertDialog.Content>
 </AlertDialog.Root>

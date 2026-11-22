@@ -364,6 +364,13 @@ export interface Catalog {
 		token: string,
 		input: { candidateId: string; source: CoverCandidate['source'] }
 	): Promise<{ reason: string | null }>;
+	/** Runs the Cover quality check on an image to upload (same type and size checks as the upload). */
+	rateCoverUpload(
+		token: string,
+		input: { body: ArrayBuffer; contentType: string }
+	): Promise<{ reason: string | null }>;
+	/** Fetches an image from an http(s) address and runs the Cover quality check on it. */
+	rateCoverUrl(token: string, input: { url: string }): Promise<{ reason: string | null }>;
 	/** Copies the picked image over the Cover of the Album and marks it Owner-chosen. */
 	pickCover(token: string, input: PickCoverInput): Promise<void>;
 	/** Uses an uploaded JPEG, PNG or WebP image (under 2 MB) as the Cover of the Album. */
