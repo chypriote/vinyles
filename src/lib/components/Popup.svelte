@@ -57,12 +57,14 @@
 	>
 		{#if artist}
 			<div
-				class="grid gap-4 {large
-					? 'grid-cols-[min(var(--popup-cover-size-large),34vw)_minmax(0,1fr)] gap-6'
-					: 'grid-cols-[minmax(0,min(var(--popup-cover-size),28vw))_minmax(0,1fr)]'}"
+				class="grid grid-cols-1 gap-4 {large
+					? 'sm:grid-cols-[min(var(--popup-cover-size-large),34vw)_minmax(0,1fr)] sm:gap-6'
+					: 'sm:grid-cols-[minmax(0,min(var(--popup-cover-size),28vw))_minmax(0,1fr)]'}"
 			>
 				{#if large}
-					<div class="relative min-h-[min(var(--popup-cover-size-large),34vw)]">
+					<div
+						class="relative mx-auto aspect-square w-full max-w-72 sm:aspect-auto sm:max-w-none sm:min-h-[min(var(--popup-cover-size-large),34vw)]"
+					>
 						{#if coverUrl && !imgFailed}
 							<img
 								src={coverUrl}
@@ -85,13 +87,13 @@
 					<img
 						src={coverUrl}
 						alt=""
-						class="aspect-square w-full rounded-2xl object-cover shadow-(--shadow-raised)"
+						class="mx-auto aspect-square w-full max-w-72 rounded-2xl sm:max-w-none object-cover shadow-(--shadow-raised)"
 						onerror={() => (imgFailed = true)}
 					/>
 				{:else}
 					<span
 						aria-hidden="true"
-						class="flex aspect-square w-full items-center justify-center rounded-2xl text-4xl font-extrabold text-primary-foreground shadow-(--shadow-raised) {tileClass(
+						class="mx-auto flex aspect-square w-full max-w-72 items-center sm:max-w-none justify-center rounded-2xl text-4xl font-extrabold text-primary-foreground shadow-(--shadow-raised) {tileClass(
 							artist
 						)}"
 					>
