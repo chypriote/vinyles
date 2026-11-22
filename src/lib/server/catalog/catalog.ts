@@ -530,11 +530,17 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 
 	// --- Cover quality helpers -------------------------------------------------
 
-	const unchecked = or(
-		isNull(albums.coverCheckedVersion),
-		ne(albums.coverCheckedVersion, albums.coverVersion)
+	/** An Album left behind by an edit has no Record and no Wishlist Item: nobody sees its Cover. */
+	const inUse = or(
+		sql`exists (select 1 from ${records} where ${records.albumId} = ${albums.id})`,
+		sql`exists (select 1 from ${wishlistItems} where ${wishlistItems.albumId} = ${albums.id})`
+	);
+	const unchecked = and(
+		inUse,
+		or(isNull(albums.coverCheckedVersion), ne(albums.coverCheckedVersion, albums.coverVersion))
 	);
 	const failing = and(
+		inUse,
 		eq(albums.coverCheckedVersion, albums.coverVersion),
 		isNotNull(albums.coverCheckReason)
 	);
