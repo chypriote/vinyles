@@ -210,7 +210,12 @@
 
 	// MusicBrainz previews are 250 px; the confirm dialog wants the 500 px image.
 	const largeUrl = (c: CoverCandidate) =>
-		c.source === 'discogs' ? c.id : c.imageUrl.replace('front-250', 'front-500');
+		c.source === 'discogs' || c.source === 'deezer'
+			? c.id
+			: c.imageUrl.replace('front-250', 'front-500');
+
+	const sourceName = (c: CoverCandidate) =>
+		c.source === 'discogs' ? 'Discogs' : c.source === 'deezer' ? 'Deezer' : 'MusicBrainz';
 
 	function choose(candidate: CoverCandidate) {
 		picked = candidate;
@@ -222,7 +227,7 @@
 			label: candidate.title
 				? `${candidate.artist} – ${candidate.title}${candidate.year ? ` (${candidate.year})` : ''}`
 				: '',
-			source: candidate.source === 'discogs' ? 'Discogs' : 'MusicBrainz'
+			source: sourceName(candidate)
 		};
 		confirmOpen = true;
 	}
@@ -364,7 +369,7 @@
 							</span>
 						{/if}
 						<span class="block truncate text-[11px] leading-tight text-muted-foreground">
-							{candidate.source === 'discogs' ? 'Discogs' : 'MusicBrainz'}
+							{sourceName(candidate)}
 						</span>
 						{#if key(candidate) in ratings}
 							{@const reason = ratings[key(candidate)]}
