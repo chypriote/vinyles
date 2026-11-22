@@ -180,9 +180,7 @@
 		<Chip tone="info" label="items" value={String(data.count)} />
 	{/snippet}
 	{#snippet login()}
-		{#if !data.isOwner}
-			<LoginAction />
-		{/if}
+		<LoginAction isOwner={data.isOwner} />
 	{/snippet}
 	{#snippet action()}
 		{#if data.isOwner}
