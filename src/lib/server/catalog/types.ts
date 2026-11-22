@@ -13,6 +13,12 @@ export interface Store {
 	name: string;
 }
 
+/** A Store as the Owner's forms list it. */
+export interface StoreOption extends Store {
+	/** Whether the Product Links select offers the Store. */
+	productLinksEnabled: boolean;
+}
+
 export interface DiscardedAlbum {
 	albumId: number;
 	artist: string;
@@ -343,7 +349,7 @@ export interface Catalog {
 	// Reads (Viewer and Owner)
 	listRecords(input?: ListRecordsInput): Promise<ListRecordsResult>;
 	listWishlist(input?: ListWishlistInput): Promise<ListWishlistResult>;
-	listStores(): Promise<Store[]>;
+	listStores(): Promise<StoreOption[]>;
 	listArtists(): Promise<Artist[]>;
 	/** The Cover image of an Album, or null when it has none. */
 	getCover(albumId: number): Promise<CoverImage | null>;
@@ -408,6 +414,8 @@ export interface Catalog {
 
 	// Stores (Owner)
 	addStore(token: string, input: AddStoreInput): Promise<Store>;
+	/** Shows or hides a Store in the Product Links select. Links already saved stay. */
+	setStoreProductLinksEnabled(token: string, storeId: number, enabled: boolean): Promise<void>;
 
 	// Wishlist (Owner)
 	addWishlistItem(token: string, input: AddWishlistItemInput): Promise<AddWishlistItemResult>;

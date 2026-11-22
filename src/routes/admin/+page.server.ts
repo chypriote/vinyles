@@ -8,11 +8,12 @@ export const load: PageServerLoad = async ({ platform, cookies }) => {
 	const catalog = catalogFromPlatform(platform);
 	const token = ownerToken(cookies);
 	if (token === '' || !(await catalog.verifyToken(token))) redirect(303, '/');
-	const [progress, failing, suggestions, discarded] = await Promise.all([
+	const [progress, failing, suggestions, discarded, stores] = await Promise.all([
 		catalog.coverCheckProgress(token),
 		catalog.listFailingCovers(token),
 		catalog.listSuggestions(token),
-		catalog.listDiscarded(token)
+		catalog.listDiscarded(token),
+		catalog.listStores()
 	]);
-	return { progress, failing, suggestions, discarded, maxSuggestions: MAX_SUGGESTIONS };
+	return { progress, failing, suggestions, discarded, stores, maxSuggestions: MAX_SUGGESTIONS };
 };
