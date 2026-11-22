@@ -107,8 +107,8 @@ export type WishlistSortKey = SortKey | 'desire';
 export interface ListFilters {
 	/** One search over Artist and Album. */
 	search?: string;
-	/** Exact Artist name. */
-	artist?: string;
+	/** Exact Artist names, several at once. Empty or missing = all. */
+	artists?: string[];
 }
 
 export interface ListRecordsInput extends ListFilters {

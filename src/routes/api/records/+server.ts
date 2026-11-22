@@ -12,7 +12,7 @@ export const GET: RequestHandler = async ({ url, platform }) => {
 	const direction = url.searchParams.get('direction');
 	const { records } = await catalogFromPlatform(platform).listRecords({
 		search: url.searchParams.get('search') ?? undefined,
-		artist: url.searchParams.get('artist') ?? undefined,
+		artists: url.searchParams.getAll('artist'),
 		sort: SORTS.includes(sort) ? sort : undefined,
 		direction: direction === 'asc' || direction === 'desc' ? direction : undefined
 	});

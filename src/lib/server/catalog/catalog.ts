@@ -98,8 +98,8 @@ function required(value: string, what: string) {
 
 const compare = (a: string, b: string) => a.localeCompare(b, undefined, { sensitivity: 'base' });
 
-function matchesFilters(artist: string, title: string, { search, artist: only }: ListFilters) {
-	if (only !== undefined && artist !== only) return false;
+function matchesFilters(artist: string, title: string, { search, artists: only }: ListFilters) {
+	if (only?.length && !only.includes(artist)) return false;
 	const needle = clean(search ?? '').toLowerCase();
 	return !needle || artist.toLowerCase().includes(needle) || title.toLowerCase().includes(needle);
 }

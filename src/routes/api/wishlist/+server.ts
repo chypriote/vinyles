@@ -16,7 +16,7 @@ export const GET: RequestHandler = async ({ url, platform }) => {
 		.filter((n): n is Desire => n === 1 || n === 2 || n === 3);
 	const { items } = await catalogFromPlatform(platform).listWishlist({
 		search: url.searchParams.get('search') ?? undefined,
-		artist: url.searchParams.get('artist') ?? undefined,
+		artists: url.searchParams.getAll('artist'),
 		desires,
 		sort: SORTS.includes(sort) ? sort : undefined,
 		direction: direction === 'asc' || direction === 'desc' ? direction : undefined
