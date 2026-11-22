@@ -277,6 +277,13 @@
 			</dl>
 		{/snippet}
 		{#snippet below()}
+			{#if selected}
+				<p class="text-xs text-muted-foreground">
+					{selected.refreshedAt
+						? `Prices checked ${formatDate(selected.refreshedAt)}`
+						: 'Prices never checked'}
+				</p>
+			{/if}
 			{#if selected && selected.priceQuotes.length > 0}
 				<ul class="flex flex-col gap-2" aria-label="Prices">
 					{#each selected.priceQuotes as quote (quote.store.id)}

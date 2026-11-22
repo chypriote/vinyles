@@ -225,7 +225,8 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 				id: wishlistItems.id,
 				album: albumColumns,
 				variant: wishlistItems.variant,
-				desire: wishlistItems.desire
+				desire: wishlistItems.desire,
+				refreshedAt: wishlistItems.refreshedAt
 			})
 			.from(wishlistItems)
 			.innerJoin(albums, eq(wishlistItems.albumId, albums.id))
@@ -271,6 +272,7 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 			album: row.album,
 			variant: row.variant,
 			desire: row.desire as Desire,
+			...(row.refreshedAt ? { refreshedAt: row.refreshedAt } : {}),
 			priceQuotes: (quotesByItem.get(row.id) ?? []).sort((a, b) =>
 				compare(a.store.name, b.store.name)
 			),
