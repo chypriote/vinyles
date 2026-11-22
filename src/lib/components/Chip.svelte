@@ -7,22 +7,22 @@
 		label,
 		value,
 		icon: Icon,
-		mobileHidden = false
+		compact = false
 	}: {
 		tone: 'highlight' | 'success' | 'info';
 		label: string;
 		value: string;
-		/** Replaces the label below `sm`. */
+		/** Shown in place of the label below `sm`. */
 		icon?: Component<{ class?: string; 'aria-hidden'?: 'true' }>;
-		/** Hide the chip below `sm`. */
-		mobileHidden?: boolean;
+		/** Hide the label below `sm`, keeping the value. */
+		compact?: boolean;
 	} = $props();
 </script>
 
-<Badge variant={tone} class={mobileHidden ? 'hidden sm:inline-flex' : ''}>
+<Badge variant={tone}>
 	{#if Icon}
 		<Icon aria-hidden="true" class="size-4 sm:hidden" />
 	{/if}
 	<span class="font-extrabold">{value}</span>
-	<span class={Icon ? 'sr-only sm:not-sr-only' : ''}>{label}</span>
+	<span class={compact || Icon ? 'sr-only sm:not-sr-only' : ''}>{label}</span>
 </Badge>
