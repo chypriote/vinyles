@@ -121,12 +121,7 @@
 			value={String(data.totals.recordCount)}
 			icon={DiscIcon}
 		/>
-		<Chip
-			tone="success"
-			label="spent"
-			value={formatCents(data.totals.totalSpentCents)}
-			mobileHidden
-		/>
+		<Chip tone="success" label="spent" value={formatCents(data.totals.totalSpentCents)} compact />
 	{/snippet}
 	{#snippet login()}
 		<LoginAction isOwner={data.isOwner} />
