@@ -326,6 +326,11 @@ export interface FailingCover {
 	artist: string;
 	title: string;
 	reason: string;
+	/** Null when the Album has no Cover. */
+	coverKey: string | null;
+	coverVersion: number;
+	inCollection: boolean;
+	inWishlist: boolean;
 }
 
 // --- Catalog -----------------------------------------------------------------

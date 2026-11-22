@@ -1733,6 +1733,28 @@ describe('Cover quality check', () => {
 		});
 	});
 
+	it('tells whether a failing Album is in the Collection, the Wishlist or both', async () => {
+		const owned = await withCover('Owned');
+		const wished = await catalog.addWishlistItem(token, {
+			artist: 'Air',
+			album: 'Wished',
+			desire: 2
+		});
+		if (wished.status !== 'added') throw new Error('not added');
+		await catalog.addWishlistItem(token, {
+			artist: 'Air',
+			album: 'Owned',
+			desire: 2,
+			addAnyway: true
+		});
+		await catalog.checkCovers(token, { size: 5 });
+		const byId = Object.fromEntries(
+			(await catalog.listFailingCovers(token)).map((f) => [f.albumId, f])
+		);
+		expect(byId[owned]).toMatchObject({ inCollection: true, inWishlist: true });
+		expect(byId[wished.item.album.id]).toMatchObject({ inCollection: false, inWishlist: true });
+	});
+
 	it('checks a batch at a time', async () => {
 		await withCover('A', png(500, 500));
 		await withCover('B', png(500, 500));
