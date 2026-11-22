@@ -3,6 +3,23 @@ export const MAX_SUGGESTIONS = 20;
 
 export const normalize = (value: string) => value.trim().toLowerCase();
 
+/**
+ * Compares titles loosely: case, accents, apostrophes and other punctuation do not count,
+ * and a final "Pt I" or "Part 1" is dropped ("The Metal Opera" is "The Metal Opera Pt I").
+ */
+export function titleKey(title: string): string {
+	return title
+		.normalize('NFKD')
+		.replace(/\p{M}/gu, '')
+		.toLowerCase()
+		.replace(/[^\p{L}\p{N}]+/gu, ' ')
+		.trim()
+		.replace(/ (pt|part) (i|1)$/, '');
+}
+
+export const albumKey = (artist: string, title: string) =>
+	`${normalize(artist)}|${titleKey(title)}`;
+
 export interface SeedRow {
 	artist: string;
 	/** Records of the Artist in the Collection. */
@@ -27,11 +44,11 @@ export interface StudioAlbum {
 	releaseYear: number;
 }
 
-/** The oldest album whose title is not known yet, or null. */
+/** The oldest album whose title is not in `known` (a set of title keys), or null. */
 export function oldestUnknown(found: StudioAlbum[], known: Set<string>): StudioAlbum | null {
 	return (
 		[...found]
 			.sort((a, b) => a.releaseYear - b.releaseYear || a.title.localeCompare(b.title))
-			.find((album) => !known.has(normalize(album.title))) ?? null
+			.find((album) => !known.has(titleKey(album.title))) ?? null
 	);
 }

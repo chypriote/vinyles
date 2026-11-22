@@ -34,7 +34,15 @@ import {
 	searchTypedCandidates
 } from './lookup';
 import { findSimilarArtists, findStudioAlbums, findTopAlbums } from './lookup';
-import { MAX_SUGGESTIONS, normalize, oldestUnknown, rankSeeds, type SeedRow } from './suggestions';
+import {
+	albumKey,
+	MAX_SUGGESTIONS,
+	normalize,
+	oldestUnknown,
+	rankSeeds,
+	titleKey,
+	type SeedRow
+} from './suggestions';
 import type {
 	AcquisitionInput,
 	AlbumSummary,
@@ -560,20 +568,28 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 		return checkCoverImage(object.size, new Uint8Array(await object.arrayBuffer()));
 	}
 
-	/** A Suggestion shows while its Album is not owned, not on the Wishlist and not Discarded. */
-	const pendingSuggestion = sql`NOT EXISTS (
-		SELECT 1 FROM album a JOIN artist ar ON ar.id = a.artist_id
-		WHERE ar.name = suggestion.artist COLLATE NOCASE AND a.title = suggestion.title COLLATE NOCASE
-		AND (EXISTS (SELECT 1 FROM record r WHERE r.album_id = a.id)
-			OR EXISTS (SELECT 1 FROM wishlist_item w WHERE w.album_id = a.id)
-			OR EXISTS (SELECT 1 FROM discarded_album d WHERE d.album_id = a.id)))`;
+	/** Albums that are owned, wanted or Discarded, as `albumKey`s. */
+	async function takenAlbumKeys(): Promise<Set<string>> {
+		const rows = await db
+			.select({ artist: artists.name, title: albums.title })
+			.from(albums)
+			.innerJoin(artists, eq(artists.id, albums.artistId))
+			.where(
+				sql`(EXISTS (SELECT 1 FROM record WHERE record.album_id = album.id)
+					OR EXISTS (SELECT 1 FROM wishlist_item WHERE wishlist_item.album_id = album.id)
+					OR EXISTS (SELECT 1 FROM discarded_album WHERE discarded_album.album_id = album.id))`
+			);
+		return new Set(rows.map((row) => albumKey(row.artist, row.title)));
+	}
 
-	const pendingSuggestions = () =>
-		db
-			.select()
-			.from(suggestions)
-			.where(pendingSuggestion)
-			.orderBy(suggestions.rank, suggestions.id);
+	/** A Suggestion shows while its Album is not owned, not on the Wishlist and not Discarded. */
+	async function pendingSuggestions() {
+		const [all, taken] = await Promise.all([
+			db.select().from(suggestions).orderBy(suggestions.rank, suggestions.id),
+			takenAlbumKeys()
+		]);
+		return all.filter((s) => !taken.has(albumKey(s.artist, s.title)));
+	}
 
 	/** Artists in the Collection or on the Wishlist, best seed first. */
 	async function rankedSeeds(): Promise<SeedRow[]> {
@@ -616,7 +632,7 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 			.select({ title: suggestions.title })
 			.from(suggestions)
 			.where(sql`${suggestions.artist} = ${artist} COLLATE NOCASE`);
-		return new Set([...albumRows, ...suggested].map((row) => normalize(row.title)));
+		return new Set([...albumRows, ...suggested].map((row) => titleKey(row.title)));
 	}
 
 	async function findSuggestion(id: number) {
@@ -1050,7 +1066,7 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 					.slice(0, MAX_SIMILAR_TRIES);
 				for (const name of similar) {
 					const known = await knownTitles(name);
-					const title = (await findTopAlbums(key, name)).find((t) => !known.has(normalize(t)));
+					const title = (await findTopAlbums(key, name)).find((t) => !known.has(titleKey(t)));
 					if (!title) continue;
 					const match = await findAlbum(name, title, intervalMs).catch(() => null);
 					await save({
