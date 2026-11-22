@@ -3,7 +3,7 @@
 	import type { PageProps } from './$types';
 	import type { WithCoverUrl } from '#lib/covers';
 	import type { WishlistItemView } from '#lib/server/catalog/types';
-	import { formatCents } from '#lib/format';
+	import { formatCents, formatDate } from '#lib/format';
 	import { postAction } from '#lib/forms';
 	import ExternalLinkIcon from '@lucide/svelte/icons/external-link';
 	import Button from '#lib/components/Button.svelte';
@@ -279,8 +279,13 @@
 				<ul class="mt-4 flex flex-col gap-2" aria-label="Prices">
 					{#each selected.priceQuotes as quote (quote.store.id)}
 						<li class="flex items-center gap-3">
-							<span class="min-w-0 flex-1 font-extrabold [overflow-wrap:anywhere]">
-								{quote.store.name}
+							<span class="flex min-w-0 flex-1 flex-col">
+								<span class="font-extrabold [overflow-wrap:anywhere]">{quote.store.name}</span>
+								{#if quote.foundAt}
+									<span class="text-xs text-muted-foreground">
+										Found {formatDate(quote.foundAt)}
+									</span>
+								{/if}
 							</span>
 							<span class="font-extrabold whitespace-nowrap">{formatCents(quote.priceCents)}</span>
 							{#if quote.url}

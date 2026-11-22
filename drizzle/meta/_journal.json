@@ -50,6 +50,13 @@
       "when": 1795188298427,
       "tag": "0006_wishlist_item_refreshed_at",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1795353168619,
+      "tag": "0007_price_quote_found_at",
+      "breakpoints": true
     }
   ]
 }

@@ -1,0 +1,1 @@
+ALTER TABLE `price_quote` ADD `found_at` text;

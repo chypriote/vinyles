@@ -72,6 +72,8 @@ export interface PriceQuote {
 	priceCents: number;
 	/** Page the Refresh read the price from. Missing for a price the Owner typed. */
 	url?: string;
+	/** ISO time the Refresh found the price. Missing for a price the Owner typed. */
+	foundAt?: string;
 }
 
 /** A page of a Store that the Refresh reads for one Wishlist Item, instead of searching the Store. */
@@ -343,7 +345,7 @@ export interface Catalog {
 	setDesire(token: string, wishlistItemIds: number[], desire: Desire): Promise<void>;
 	/**
 	 * Reads the price of the Wishlist Item at every automatic Store and replaces its Price Quotes there.
-	 * A Store with no matching product loses its quote. A Store that cannot be read keeps it.
+	 * A Store with no matching product, or that cannot be read, keeps its old quote.
 	 * A Store with a Product Link is read through that link, not searched.
 	 */
 	refreshPrices(token: string, wishlistItemId: number): Promise<WishlistItemView>;

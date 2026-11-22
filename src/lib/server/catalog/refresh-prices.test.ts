@@ -105,7 +105,7 @@ describe('Refresh prices', () => {
 		expect(refreshed.priceQuotes[0].url).toBe('https://www.impericon.com/products/b');
 	});
 
-	it('replaces the quote of a Store, and drops it when the Store has no matching product', async () => {
+	it('replaces the quote of a Store and dates it, and keeps the old one when nothing matches', async () => {
 		const item = await addItem();
 		pages.set(
 			host('Impericon'),
@@ -115,7 +115,12 @@ describe('Refresh prices', () => {
 			host('Nuclear Blast'),
 			suggestions({ title: 'Air - Talkie Walkie', price: '40', url: '/p/2' })
 		);
-		await catalog.refreshPrices(token, item.id);
+		const before = Date.now();
+		const first = await catalog.refreshPrices(token, item.id);
+		const foundAt = (name: string, view = first) =>
+			Date.parse(view.priceQuotes.find((q) => q.store.name === name)!.foundAt!);
+		expect(foundAt('Impericon')).toBeGreaterThanOrEqual(before);
+		expect(foundAt('Impericon')).toBeLessThanOrEqual(Date.now());
 
 		pages.set(
 			host('Impericon'),
@@ -127,8 +132,11 @@ describe('Refresh prices', () => {
 		);
 		const refreshed = await catalog.refreshPrices(token, item.id);
 		expect(refreshed.priceQuotes.map((q) => [q.store.name, q.priceCents])).toEqual([
-			['Impericon', 2800]
+			['Impericon', 2800],
+			['Nuclear Blast', 4000]
 		]);
+		expect(foundAt('Nuclear Blast', refreshed)).toBe(foundAt('Nuclear Blast'));
+		expect(foundAt('Impericon', refreshed)).toBeGreaterThanOrEqual(foundAt('Impericon'));
 	});
 
 	it('keeps the old quote when a Store fails or does not answer with suggestions', async () => {
@@ -367,7 +375,7 @@ describe('Shopify Stores', () => {
 		);
 	});
 
-	it('drops the quote when the suggestions hold no matching product, and keeps it when they are not JSON', async () => {
+	it('keeps the quote when the suggestions hold no matching product, or are not JSON', async () => {
 		const item = await addItem();
 		pages.set(
 			host('Impericon'),
@@ -383,7 +391,7 @@ describe('Shopify Stores', () => {
 			host('Impericon'),
 			suggestions({ title: 'Air - Moon Safari', price: '20', url: '/p/2' })
 		);
-		const dropped = await catalog.refreshPrices(token, item.id);
-		expect(dropped.priceQuotes).toEqual([]);
+		const unmatched = await catalog.refreshPrices(token, item.id);
+		expect(unmatched.priceQuotes.map((q) => q.priceCents)).toEqual([3000]);
 	});
 });
