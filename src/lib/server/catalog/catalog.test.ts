@@ -1364,6 +1364,23 @@ describe('Changing the Cover of an Album', () => {
 			await expect(catalog.searchCoverCandidates('bad-token', 'Air')).rejects.toThrow();
 		});
 
+		it('can be searched with typed text that holds AND, OR or NOT', async () => {
+			fakeAlbums.push(group({ mbid: 'mb-fire', artist: 'Fire', title: 'Ice' }));
+			const inner = vi.mocked(globalThis.fetch).getMockImplementation()!;
+			vi.mocked(globalThis.fetch).mockImplementation(async (input, init) => {
+				const query = new URL(String(input)).searchParams.get('query') ?? '';
+				// MusicBrainz answers 400 to a Lucene query with an operator inside a group.
+				if (/\((?:[^()]*\s)?(?:AND|OR|NOT)(?:\s[^()]*)?\)/.test(query)) {
+					return new Response('bad query', { status: 400 });
+				}
+				return inner(input, init);
+			});
+			const hits = await catalog.searchCoverCandidates(token, 'Fire AND Ice NOT OR');
+			expect(hits.filter((c) => c.source === 'release-group').map((c) => c.id)).toEqual([
+				'mb-fire'
+			]);
+		});
+
 		it('add Discogs hits with an image to a typed search, and survive a Discogs failure', async () => {
 			fakeAlbums.push(group({ cover: 'c' }));
 			const found = await catalog.searchCoverCandidates(token, 'Air Moon Safari');

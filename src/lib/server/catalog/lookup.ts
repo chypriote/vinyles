@@ -229,8 +229,11 @@ export async function searchTypedCandidates(
 	text: string,
 	intervalMs: number
 ): Promise<FoundCandidate[]> {
-	// Lucene special characters would break or change the query.
-	const words = text.replace(/[^\p{L}\p{N}\s]/gu, ' ').trim();
+	// Lucene special characters and the uppercase operators AND, OR and NOT would break the query.
+	const words = text
+		.replace(/[^\p{L}\p{N}\s]/gu, ' ')
+		.replace(/\b(?:AND|OR|NOT)\b/g, (word) => word.toLowerCase())
+		.trim();
 	if (!words) return [];
 	return searchReleaseGroups(
 		`(releasegroup:(${words}) OR artist:(${words})) AND primarytype:album`,
