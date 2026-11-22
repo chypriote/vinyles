@@ -13,6 +13,12 @@ export interface Store {
 	name: string;
 }
 
+export interface DiscardedAlbum {
+	albumId: number;
+	artist: string;
+	title: string;
+}
+
 export interface Artist {
 	id: number;
 	name: string;
@@ -343,7 +349,12 @@ export interface Catalog {
 	addWishlistItem(token: string, input: AddWishlistItemInput): Promise<AddWishlistItemResult>;
 	editWishlistItem(token: string, input: EditWishlistItemInput): Promise<WishlistItemView>;
 	gotIt(token: string, input: GotItInput): Promise<RecordView>;
-	drop(token: string, wishlistItemId: number): Promise<void>;
+	/** Removes the Wishlist Item and puts its Album on the Discarded list. An unknown item is ignored. */
+	discard(token: string, wishlistItemId: number): Promise<void>;
+	/** Takes the Album off the Discarded list. */
+	undiscard(token: string, albumId: number): Promise<void>;
+	/** The Discarded list, by artist then title. */
+	listDiscarded(token: string): Promise<DiscardedAlbum[]>;
 	setDesire(token: string, wishlistItemIds: number[], desire: Desire): Promise<void>;
 	/**
 	 * Reads the price of the Wishlist Item at every automatic Store and replaces its Price Quotes there.

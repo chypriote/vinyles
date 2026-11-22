@@ -91,7 +91,7 @@
 	let editOpen = $state(false);
 	let changingCover = $state(false);
 
-	// The row can disappear after a change (deleted, got, dropped): close its Popups.
+	// The row can disappear after a change (deleted, got, discarded): close its Popups.
 	$effect(() => {
 		if (selectedId !== null && !selected) {
 			open = false;

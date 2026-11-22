@@ -75,6 +75,13 @@ export const wishlistItems = sqliteTable(
 	(t) => [check('wishlist_item_desire_range', sql`${t.desire} BETWEEN 1 AND 3`)]
 );
 
+/** Albums the Owner discarded: Suggestions never propose them. */
+export const discardedAlbums = sqliteTable('discarded_album', {
+	albumId: integer('album_id')
+		.primaryKey()
+		.references(() => albums.id, { onDelete: 'cascade' })
+});
+
 export const productLinks = sqliteTable(
 	'product_link',
 	{

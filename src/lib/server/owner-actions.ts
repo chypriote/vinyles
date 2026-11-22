@@ -67,9 +67,9 @@ export const ownerActions = {
 		run<GotItInput>(event, async (catalog, token, input) => {
 			await catalog.gotIt(token, input);
 		}),
-	drop: (event: RequestEvent) =>
+	discard: (event: RequestEvent) =>
 		run<{ id: number }>(event, async (catalog, token, { id }) => {
-			await catalog.drop(token, id);
+			await catalog.discard(token, id);
 		}),
 	refreshPrices: (event: RequestEvent) =>
 		run<{ id: number }>(event, async (catalog, token, { id }) => {

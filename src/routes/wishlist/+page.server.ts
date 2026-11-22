@@ -12,7 +12,7 @@ export const actions: Actions = {
 	addWishlistItem: ownerActions.addWishlistItem,
 	editWishlistItem: ownerActions.editWishlistItem,
 	gotIt: ownerActions.gotIt,
-	drop: ownerActions.drop,
+	discard: ownerActions.discard,
 	setDesire: ownerActions.setDesire,
 	refreshPrices: ownerActions.refreshPrices,
 	setProductLink: ownerActions.setProductLink,

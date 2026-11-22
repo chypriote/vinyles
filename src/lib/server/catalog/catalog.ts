@@ -3,6 +3,7 @@ import { drizzle, type DrizzleD1Database } from 'drizzle-orm/d1';
 import {
 	albums,
 	artists,
+	discardedAlbums,
 	priceQuotes,
 	productLinks,
 	records,
@@ -37,6 +38,7 @@ import type {
 	Catalog,
 	CoverCheckProgress,
 	Desire,
+	DiscardedAlbum,
 	ImportProgress,
 	ListFilters,
 	PriceQuote,
@@ -731,10 +733,13 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 				if (owned.length) return { status: 'already-owned', records: owned };
 			}
 			const albumId = await ensureAlbum(input.artist, input.album);
-			const [{ id }] = await db
-				.insert(wishlistItems)
-				.values({ albumId, variant: cleanOrNull(input.variant), desire: input.desire })
-				.returning({ id: wishlistItems.id });
+			const [[{ id }]] = (await db.batch([
+				db
+					.insert(wishlistItems)
+					.values({ albumId, variant: cleanOrNull(input.variant), desire: input.desire })
+					.returning({ id: wishlistItems.id }),
+				db.delete(discardedAlbums).where(eq(discardedAlbums.albumId, albumId))
+			])) as unknown as [{ id: number }[], unknown];
 			if (quotes.length) {
 				await db.insert(priceQuotes).values(quotes.map((q) => ({ wishlistItemId: id, ...q })));
 			}
@@ -770,14 +775,38 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 						...acquisition
 					})
 					.returning({ id: records.id }),
-				db.delete(wishlistItems).where(eq(wishlistItems.id, item.id))
-			])) as unknown as [{ id: number }[], unknown];
+				db.delete(wishlistItems).where(eq(wishlistItems.id, item.id)),
+				db.delete(discardedAlbums).where(eq(discardedAlbums.albumId, item.albumId))
+			])) as unknown as [{ id: number }[], unknown, unknown];
 			return oneRecord(id);
 		},
 
-		async drop(token, wishlistItemId) {
+		async discard(token, wishlistItemId) {
 			await owner(token);
-			await db.delete(wishlistItems).where(eq(wishlistItems.id, wishlistItemId));
+			const [item] = await db
+				.select({ albumId: wishlistItems.albumId })
+				.from(wishlistItems)
+				.where(eq(wishlistItems.id, wishlistItemId));
+			if (!item) return;
+			await db.batch([
+				db.insert(discardedAlbums).values({ albumId: item.albumId }).onConflictDoNothing(),
+				db.delete(wishlistItems).where(eq(wishlistItems.id, wishlistItemId))
+			]);
+		},
+
+		async undiscard(token, albumId) {
+			await owner(token);
+			await db.delete(discardedAlbums).where(eq(discardedAlbums.albumId, albumId));
+		},
+
+		async listDiscarded(token): Promise<DiscardedAlbum[]> {
+			await owner(token);
+			return db
+				.select({ albumId: albums.id, artist: artists.name, title: albums.title })
+				.from(discardedAlbums)
+				.innerJoin(albums, eq(albums.id, discardedAlbums.albumId))
+				.innerJoin(artists, eq(artists.id, albums.artistId))
+				.orderBy(artists.name, albums.title);
 		},
 
 		async setDesire(token, wishlistItemIds, desire) {
