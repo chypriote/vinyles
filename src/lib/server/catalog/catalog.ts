@@ -236,7 +236,8 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 				itemId: priceQuotes.wishlistItemId,
 				store: { id: stores.id, name: stores.name },
 				priceCents: priceQuotes.priceCents,
-				url: priceQuotes.url
+				url: priceQuotes.url,
+				foundAt: priceQuotes.foundAt
 			})
 			.from(priceQuotes)
 			.innerJoin(stores, eq(priceQuotes.storeId, stores.id));
@@ -257,7 +258,12 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 		const quotesByItem = new Map<number, PriceQuote[]>();
 		for (const q of quoteRows) {
 			const list = quotesByItem.get(q.itemId) ?? [];
-			list.push({ store: q.store, priceCents: q.priceCents, ...(q.url ? { url: q.url } : {}) });
+			list.push({
+				store: q.store,
+				priceCents: q.priceCents,
+				...(q.url ? { url: q.url } : {}),
+				...(q.foundAt ? { foundAt: q.foundAt } : {})
+			});
 			quotesByItem.set(q.itemId, list);
 		}
 		return rows.map((row) => ({
@@ -289,9 +295,10 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 		}
 	}
 
-	type Found = { priceCents: number; url: string } | 'none' | 'unreadable';
+	/** A price found at a Store, or null: nothing matches, or the Store cannot be read. */
+	type Found = { priceCents: number; url: string } | null;
 
-	/** The price at one Store, from its search suggestions: found, no matching product, or unreadable. */
+	/** The price at one Store, from its search suggestions. */
 	async function priceAt(store: AutomaticStore, artist: string, album: string): Promise<Found> {
 		const query = `${artist} ${album} vinyl`;
 		const searchUrl = store.searchUrl(query);
@@ -305,7 +312,7 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 		}
 		if (offers === null) {
 			if (text !== null) console.warn(`Refresh: ${store.name} suggestions are not Shopify JSON`);
-			return 'unreadable';
+			return null;
 		}
 		const match = cheapestMatch(offers, artist, album);
 		console.log(
@@ -318,17 +325,17 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 							.join(' | ')}`
 			}`
 		);
-		return match ? { priceCents: match.priceCents, url: match.url ?? searchUrl } : 'none';
+		return match ? { priceCents: match.priceCents, url: match.url ?? searchUrl } : null;
 	}
 
-	/** The price on a Product Link page: found, or unreadable. */
+	/** The price on a Product Link page. */
 	async function priceAtLink(url: string): Promise<Found> {
 		const html = await readPage(url);
 		const priceCents = html === null ? null : readPagePrice(html, url);
 		if (html !== null && priceCents === null) {
 			console.warn(`Refresh: no price on ${new URL(url).host} page (${html.length} bytes)`);
 		}
-		return priceCents === null ? 'unreadable' : { priceCents, url };
+		return priceCents === null ? null : { priceCents, url };
 	}
 
 	// --- Writes: shared pieces -------------------------------------------------
@@ -460,26 +467,18 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 				price: await priceAtLink(url)
 			}))
 		]);
+		const foundAt = new Date().toISOString();
 		const writes: unknown[] = [];
 		for (const { storeId, price } of found) {
-			if (price === 'unreadable') continue;
+			if (price === null) continue;
 			writes.push(
-				price === 'none'
-					? db
-							.delete(priceQuotes)
-							.where(
-								and(
-									eq(priceQuotes.wishlistItemId, wishlistItemId),
-									eq(priceQuotes.storeId, storeId)
-								)
-							)
-					: db
-							.insert(priceQuotes)
-							.values({ wishlistItemId, storeId, ...price })
-							.onConflictDoUpdate({
-								target: [priceQuotes.wishlistItemId, priceQuotes.storeId],
-								set: price
-							})
+				db
+					.insert(priceQuotes)
+					.values({ wishlistItemId, storeId, ...price, foundAt })
+					.onConflictDoUpdate({
+						target: [priceQuotes.wishlistItemId, priceQuotes.storeId],
+						set: { ...price, foundAt }
+					})
 			);
 		}
 		await run([

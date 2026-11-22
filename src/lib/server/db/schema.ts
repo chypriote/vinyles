@@ -101,7 +101,9 @@ export const priceQuotes = sqliteTable(
 			.references(() => stores.id),
 		priceCents: integer('price_cents').notNull(),
 		/** Page the price was read from. Null for a price the Owner typed. */
-		url: text('url')
+		url: text('url'),
+		/** ISO time the Refresh found the price. Null for a price the Owner typed. */
+		foundAt: text('found_at')
 	},
 	// One per Store per Wishlist Item.
 	(t) => [primaryKey({ columns: [t.wishlistItemId, t.storeId] })]
