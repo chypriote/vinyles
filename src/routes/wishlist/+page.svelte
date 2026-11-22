@@ -2,7 +2,7 @@
 	import { SvelteURLSearchParams } from 'svelte/reactivity';
 	import type { PageProps } from './$types';
 	import type { WithCoverUrl } from '#lib/covers';
-	import type { WishlistItemView } from '#lib/server/catalog/types';
+	import type { PriceQuote, Store, WishlistItemView } from '#lib/server/catalog/types';
 	import { formatCents, formatDate } from '#lib/format';
 	import { postAction } from '#lib/forms';
 	import ExternalLinkIcon from '@lucide/svelte/icons/external-link';
@@ -97,6 +97,21 @@
 
 	let selectedId = $state<number | null>(null);
 	const selected = $derived<Row | null>(data.items.find((row) => row.id === selectedId) ?? null);
+	/** One row per Store with a price or a Product Link. A Store with only a link shows no price. */
+	const storeRows = $derived.by(() => {
+		if (!selected) return [];
+		const rows: { store: Store; url?: string; quote?: PriceQuote }[] = selected.productLinks.map(
+			(link) => ({
+				store: link.store,
+				url: link.url,
+				quote: selected!.priceQuotes.find((q) => q.store.id === link.store.id)
+			})
+		);
+		for (const quote of selected.priceQuotes)
+			if (!rows.some((r) => r.store.id === quote.store.id))
+				rows.push({ store: quote.store, url: quote.url, quote });
+		return rows.sort((a, b) => a.store.name.localeCompare(b.store.name));
+	});
 	let anchor = $state<HTMLElement | null>(null);
 	let open = $state(false);
 	let gotItOpen = $state(false);
@@ -284,28 +299,34 @@
 						: 'Prices never checked'}
 				</p>
 			{/if}
-			{#if selected && selected.priceQuotes.length > 0}
+			{#if selected && storeRows.length > 0}
 				<ul class="flex flex-col gap-2" aria-label="Prices">
-					{#each selected.priceQuotes as quote (quote.store.id)}
+					{#each storeRows as row (row.store.id)}
 						<li class="flex items-center gap-3">
 							<span class="flex min-w-0 flex-1 flex-col">
-								<span class="font-extrabold [overflow-wrap:anywhere]">{quote.store.name}</span>
-								{#if quote.foundAt}
+								<span class="font-extrabold [overflow-wrap:anywhere]">{row.store.name}</span>
+								{#if row.quote?.foundAt}
 									<span class="text-xs text-muted-foreground">
-										Found {formatDate(quote.foundAt)}
+										Found {formatDate(row.quote.foundAt)}
 									</span>
 								{/if}
 							</span>
-							<span class="font-extrabold whitespace-nowrap">{formatCents(quote.priceCents)}</span>
-							{#if quote.url}
+							{#if row.quote}
+								<span class="font-extrabold whitespace-nowrap {row.quote.url ? '' : 'italic'}">
+									{formatCents(row.quote.priceCents)}
+								</span>
+							{:else}
+								<span class="text-sm whitespace-nowrap text-muted-foreground">No price</span>
+							{/if}
+							{#if row.url}
 								<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- external store page -->
 								<UiButton
 									variant="neutral"
 									size="icon"
-									href={quote.url}
+									href={row.url}
 									target="_blank"
 									rel="noopener noreferrer"
-									aria-label={`Open ${quote.store.name}`}
+									aria-label={`Open ${row.store.name}`}
 								>
 									<ExternalLinkIcon class="size-4" />
 								</UiButton>
@@ -400,6 +421,7 @@
 				<ProductLinks
 					itemId={selected.id}
 					links={selected.productLinks}
+					quotes={selected.priceQuotes}
 					stores={data.stores}
 					onDone={() => {
 						linksOpen = false;

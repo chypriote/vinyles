@@ -497,3 +497,94 @@ describe('Shopify Stores', () => {
 		expect(unmatched.priceQuotes.map((q) => q.priceCents)).toEqual([3000]);
 	});
 });
+
+describe('Manual price', () => {
+	const storeId = async (name: string) =>
+		(await catalog.listStores()).find((s) => s.name === name)!.id;
+
+	const setup = async () => {
+		const item = await addItem();
+		const store = await storeId('Official Store');
+		await catalog.setProductLink(token, {
+			wishlistItemId: item.id,
+			storeId: store,
+			url: 'https://x.test/a'
+		});
+		return { item, store };
+	};
+
+	it('stores a price the Owner typed, without page or date', async () => {
+		const { item, store } = await setup();
+		const saved = await catalog.setManualPrice(token, {
+			wishlistItemId: item.id,
+			storeId: store,
+			priceCents: 2590
+		});
+		expect(saved.priceQuotes).toEqual([
+			{ store: { id: store, name: 'Official Store' }, priceCents: 2590 }
+		]);
+	});
+
+	it('replaces a price that a Refresh read', async () => {
+		const { item, store } = await setup();
+		pages.set('x.test', html({ name: 'Air', price: '30.00' }));
+		await catalog.refreshPrices(token, item.id);
+		const saved = await catalog.setManualPrice(token, {
+			wishlistItemId: item.id,
+			storeId: store,
+			priceCents: 2590
+		});
+		expect(saved.priceQuotes[0]).toEqual({
+			store: { id: store, name: 'Official Store' },
+			priceCents: 2590
+		});
+	});
+
+	it('survives a Refresh and is removed with a null price', async () => {
+		const { item, store } = await setup();
+		await catalog.setManualPrice(token, {
+			wishlistItemId: item.id,
+			storeId: store,
+			priceCents: 2590
+		});
+		pages.set('x.test', html({ name: 'Air', price: '30.00' }));
+		const refreshed = await catalog.refreshPrices(token, item.id);
+		expect(refreshed.priceQuotes.map((q) => q.priceCents)).toEqual([2590]);
+		const cleared = await catalog.setManualPrice(token, {
+			wishlistItemId: item.id,
+			storeId: store,
+			priceCents: null
+		});
+		expect(cleared.priceQuotes).toEqual([]);
+		expect(cleared.productLinks).toHaveLength(1);
+	});
+
+	it('keeps a price a Refresh read when asked to clear', async () => {
+		const { item, store } = await setup();
+		pages.set('x.test', html({ name: 'Air', price: '30.00' }));
+		await catalog.refreshPrices(token, item.id);
+		const cleared = await catalog.setManualPrice(token, {
+			wishlistItemId: item.id,
+			storeId: store,
+			priceCents: null
+		});
+		expect(cleared.priceQuotes.map((q) => q.priceCents)).toEqual([3000]);
+	});
+
+	it('refuses a bad price, an unknown Store or Item, and a Viewer', async () => {
+		const { item, store } = await setup();
+		const input = { wishlistItemId: item.id, storeId: store, priceCents: 100 };
+		await expect(catalog.setManualPrice(token, { ...input, priceCents: -5 })).rejects.toThrow(
+			'euro cents'
+		);
+		await expect(catalog.setManualPrice(token, { ...input, storeId: 9999 })).rejects.toThrow(
+			'Store not found'
+		);
+		await expect(catalog.setManualPrice(token, { ...input, wishlistItemId: 9999 })).rejects.toThrow(
+			'not found'
+		);
+		await expect(catalog.setManualPrice('nope', input)).rejects.toMatchObject({
+			name: 'UnauthorizedError'
+		});
+	});
+});
