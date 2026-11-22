@@ -1755,6 +1755,19 @@ describe('Cover quality check', () => {
 		expect(byId[wished.item.album.id]).toMatchObject({ inCollection: false, inWishlist: true });
 	});
 
+	it('ignores an Album that no Record and no Wishlist Item uses any more', async () => {
+		const record = await addRecord({ artist: 'Air', album: 'Old title' });
+		await catalog.editRecord(token, {
+			id: record.id,
+			artist: 'Air',
+			album: 'New title',
+			acquisition: gift()
+		});
+		expect(await catalog.coverCheckProgress(token)).toEqual({ pending: 1, failing: 0 });
+		await catalog.checkCovers(token, { size: 5 });
+		expect((await catalog.listFailingCovers(token)).map((f) => f.title)).toEqual(['New title']);
+	});
+
 	it('checks a batch at a time', async () => {
 		await withCover('A', png(500, 500));
 		await withCover('B', png(500, 500));
