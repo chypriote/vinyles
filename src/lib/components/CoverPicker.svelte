@@ -308,7 +308,7 @@
 						/>
 						{#if candidate.title}
 							<span
-								class="block truncate text-[11px] leading-tight font-bold"
+								class="line-clamp-2 text-[11px] leading-tight font-bold break-words"
 								title="{candidate.artist} – {candidate.title}"
 							>
 								{candidate.artist} – {candidate.title}{candidate.year ? ` (${candidate.year})` : ''}
