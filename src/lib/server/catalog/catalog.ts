@@ -8,6 +8,7 @@ import {
 	productLinks,
 	records,
 	stores,
+	suggestions,
 	wishlistItems
 } from '../db/schema';
 import { checkCoverImage } from './cover-check';
@@ -31,6 +32,8 @@ import {
 	searchDiscogs,
 	searchTypedCandidates
 } from './lookup';
+import { findStudioAlbums } from './lookup';
+import { MAX_SUGGESTIONS, normalize, oldestUnknown, rankSeeds, type SeedRow } from './suggestions';
 import type {
 	AcquisitionInput,
 	AlbumSummary,
@@ -48,6 +51,8 @@ import type {
 	RecordView,
 	SortDirection,
 	Store,
+	SuggestionProgress,
+	SuggestionView,
 	WishlistSortKey,
 	WishlistItemView
 } from './types';
@@ -536,6 +541,71 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 		return checkCoverImage(object.size, new Uint8Array(await object.arrayBuffer()));
 	}
 
+	/** A Suggestion shows while its Album is not owned, not on the Wishlist and not Discarded. */
+	const pendingSuggestion = sql`NOT EXISTS (
+		SELECT 1 FROM album a JOIN artist ar ON ar.id = a.artist_id
+		WHERE ar.name = suggestion.artist COLLATE NOCASE AND a.title = suggestion.title COLLATE NOCASE
+		AND (EXISTS (SELECT 1 FROM record r WHERE r.album_id = a.id)
+			OR EXISTS (SELECT 1 FROM wishlist_item w WHERE w.album_id = a.id)
+			OR EXISTS (SELECT 1 FROM discarded_album d WHERE d.album_id = a.id)))`;
+
+	const pendingSuggestions = () =>
+		db
+			.select()
+			.from(suggestions)
+			.where(pendingSuggestion)
+			.orderBy(suggestions.rank, suggestions.id);
+
+	/** Artists in the Collection or on the Wishlist, best seed first. */
+	async function rankedSeeds(): Promise<SeedRow[]> {
+		const owned = await db
+			.select({ artist: artists.name, records: count(records.id) })
+			.from(records)
+			.innerJoin(albums, eq(albums.id, records.albumId))
+			.innerJoin(artists, eq(artists.id, albums.artistId))
+			.groupBy(artists.id);
+		const wanted = await db
+			.select({ artist: artists.name, maxDesire: sql<number>`max(${wishlistItems.desire})` })
+			.from(wishlistItems)
+			.innerJoin(albums, eq(albums.id, wishlistItems.albumId))
+			.innerJoin(artists, eq(artists.id, albums.artistId))
+			.groupBy(artists.id);
+		const seeds = new Map<string, SeedRow>();
+		for (const { artist, records: n } of owned)
+			seeds.set(artist, { artist, records: n, maxDesire: 0 });
+		for (const { artist, maxDesire } of wanted) {
+			seeds.set(artist, { artist, records: seeds.get(artist)?.records ?? 0, maxDesire });
+		}
+		return rankSeeds([...seeds.values()]);
+	}
+
+	/** Titles of the Artist's Albums that are owned, wanted or Discarded, and of its Suggestions. */
+	async function knownTitles(artist: string): Promise<Set<string>> {
+		const albumRows = await db
+			.select({ title: albums.title })
+			.from(albums)
+			.innerJoin(artists, eq(artists.id, albums.artistId))
+			.where(
+				and(
+					eq(artists.name, artist),
+					sql`(EXISTS (SELECT 1 FROM record WHERE record.album_id = album.id)
+						OR EXISTS (SELECT 1 FROM wishlist_item WHERE wishlist_item.album_id = album.id)
+						OR EXISTS (SELECT 1 FROM discarded_album WHERE discarded_album.album_id = album.id))`
+				)
+			);
+		const suggested = await db
+			.select({ title: suggestions.title })
+			.from(suggestions)
+			.where(sql`${suggestions.artist} = ${artist} COLLATE NOCASE`);
+		return new Set([...albumRows, ...suggested].map((row) => normalize(row.title)));
+	}
+
+	async function findSuggestion(id: number) {
+		const [suggestion] = await db.select().from(suggestions).where(eq(suggestions.id, id));
+		if (!suggestion) throw new Error('Suggestion not found');
+		return suggestion;
+	}
+
 	return {
 		async listRecords(input = {}) {
 			const all = await loadRecords();
@@ -864,6 +934,75 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 			const item = (await loadWishlist(wishlistItemId))[0];
 			if (!item) throw new Error('Wishlist Item not found');
 			return item;
+		},
+
+		async findSuggestions(token, input): Promise<SuggestionProgress> {
+			await owner(token);
+			const size = Math.max(0, Math.floor(input.size));
+			const start = Math.max(0, Math.floor(input.cursor ?? 0));
+			const seeds = await rankedSeeds();
+			const current = await pendingSuggestions();
+			let pending = current.length;
+			const covered = new Set(current.map((s) => normalize(s.artist)));
+			let index = start;
+			for (; index < seeds.length && index < start + size && pending < MAX_SUGGESTIONS; index++) {
+				const { artist } = seeds[index];
+				if (covered.has(normalize(artist))) continue;
+				const pick = oldestUnknown(
+					await findStudioAlbums(artist, intervalMs),
+					await knownTitles(artist)
+				);
+				if (!pick) continue;
+				const saved = await db
+					.insert(suggestions)
+					.values({
+						artist,
+						title: pick.title,
+						releaseYear: pick.releaseYear,
+						musicbrainzId: pick.musicbrainzId,
+						source: 'musicbrainz',
+						reason: `More by ${artist}`,
+						rank: index + 1
+					})
+					.onConflictDoNothing()
+					.returning({ id: suggestions.id });
+				pending += saved.length;
+			}
+			return { pending, next: pending >= MAX_SUGGESTIONS || index >= seeds.length ? null : index };
+		},
+
+		async listSuggestions(token): Promise<SuggestionView[]> {
+			await owner(token);
+			return (await pendingSuggestions()).map((s) => ({
+				id: s.id,
+				artist: s.artist,
+				title: s.title,
+				releaseYear: s.releaseYear,
+				musicbrainzId: s.musicbrainzId,
+				source: s.source,
+				reason: s.reason
+			}));
+		},
+
+		async addSuggestion(token, id) {
+			await owner(token);
+			const suggestion = await findSuggestion(id);
+			const albumId = await ensureAlbum(suggestion.artist, suggestion.title);
+			await db.batch([
+				db.insert(wishlistItems).values({ albumId, desire: 2 }),
+				db.delete(discardedAlbums).where(eq(discardedAlbums.albumId, albumId)),
+				db.delete(suggestions).where(eq(suggestions.id, id))
+			]);
+		},
+
+		async discardSuggestion(token, id) {
+			await owner(token);
+			const suggestion = await findSuggestion(id);
+			const albumId = await ensureAlbum(suggestion.artist, suggestion.title);
+			await db.batch([
+				db.insert(discardedAlbums).values({ albumId }).onConflictDoNothing(),
+				db.delete(suggestions).where(eq(suggestions.id, id))
+			]);
 		},
 
 		async importRows(token, input) {

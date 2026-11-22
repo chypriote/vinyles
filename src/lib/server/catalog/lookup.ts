@@ -1,3 +1,5 @@
+import { normalize, type StudioAlbum } from './suggestions';
+
 const USER_AGENT = 'vinyles/0.1 (personal record collection; https://github.com/chypriote/vinyles)';
 const MIN_SCORE = 90;
 
@@ -115,6 +117,32 @@ export async function findReleaseCandidates(
 			source: 'release' as const,
 			imageUrl: imageUrl('release', release.id, 250)
 		}));
+}
+
+/** Studio albums (primary type Album, no secondary type) credited to the Artist. */
+export async function findStudioAlbums(artist: string, intervalMs: number): Promise<StudioAlbum[]> {
+	const url = new URL('https://musicbrainz.org/ws/2/release-group/');
+	url.searchParams.set('query', `artist:${quote(artist)} AND primarytype:album`);
+	url.searchParams.set('limit', '100');
+	const data = await musicBrainz<{
+		'release-groups'?: {
+			id: string;
+			title: string;
+			'primary-type'?: string;
+			'secondary-types'?: string[];
+			'artist-credit'?: { name: string }[];
+			'first-release-date'?: string;
+		}[];
+	}>(url, intervalMs);
+	const wanted = normalize(artist);
+	return (data['release-groups'] ?? []).flatMap((hit) => {
+		const year = Number.parseInt(hit['first-release-date']?.slice(0, 4) ?? '', 10);
+		const studio = hit['primary-type'] === 'Album' && !hit['secondary-types']?.length;
+		const credited = (hit['artist-credit'] ?? []).some((c) => normalize(c.name) === wanted);
+		return studio && credited && Number.isInteger(year)
+			? [{ musicbrainzId: hit.id, title: hit.title, releaseYear: year }]
+			: [];
+	});
 }
 
 type ReleaseGroupHits = {

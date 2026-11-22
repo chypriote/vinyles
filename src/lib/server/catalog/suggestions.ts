@@ -1,0 +1,37 @@
+/** Pending Suggestions at most, all sources together. */
+export const MAX_SUGGESTIONS = 20;
+
+export const normalize = (value: string) => value.trim().toLowerCase();
+
+export interface SeedRow {
+	artist: string;
+	/** Records of the Artist in the Collection. */
+	records: number;
+	/** Highest Desire among the Artist's Wishlist Items, 0 for none. */
+	maxDesire: number;
+}
+
+/** Artists with a Desire 3 Wishlist Item first, then the Artists with the most Records, then by name. */
+export function rankSeeds(rows: SeedRow[]): SeedRow[] {
+	return [...rows].sort(
+		(a, b) =>
+			Number(b.maxDesire === 3) - Number(a.maxDesire === 3) ||
+			b.records - a.records ||
+			a.artist.localeCompare(b.artist, undefined, { sensitivity: 'base' })
+	);
+}
+
+export interface StudioAlbum {
+	musicbrainzId: string;
+	title: string;
+	releaseYear: number;
+}
+
+/** The oldest album whose title is not known yet, or null. */
+export function oldestUnknown(found: StudioAlbum[], known: Set<string>): StudioAlbum | null {
+	return (
+		[...found]
+			.sort((a, b) => a.releaseYear - b.releaseYear || a.title.localeCompare(b.title))
+			.find((album) => !known.has(normalize(album.title))) ?? null
+	);
+}

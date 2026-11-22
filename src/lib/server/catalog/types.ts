@@ -283,6 +283,28 @@ export interface SaveYearsInput {
 	years: { albumId: number; releaseYear: number }[];
 }
 
+// --- Suggestions (Owner) -----------------------------------------------------
+
+export type SuggestionSource = 'musicbrainz' | 'lastfm';
+
+export interface SuggestionView {
+	id: number;
+	artist: string;
+	title: string;
+	releaseYear: number | null;
+	/** Release group on MusicBrainz, for the Cover Art Archive image. Null when unknown. */
+	musicbrainzId: string | null;
+	source: SuggestionSource;
+	reason: string;
+}
+
+export interface SuggestionProgress {
+	/** Suggestions waiting for the Owner. */
+	pending: number;
+	/** Position of the next seed Artist to search, or null when the run is over (cap reached or all seeds read). */
+	next: number | null;
+}
+
 // --- Cover quality check (Owner) ---------------------------------------------
 
 export interface CoverCheckProgress {
@@ -336,6 +358,22 @@ export interface Catalog {
 	coverCheckProgress(token: string): Promise<CoverCheckProgress>;
 	/** Albums whose current Cover failed its check. */
 	listFailingCovers(token: string): Promise<FailingCover[]>;
+
+	// Suggestions (Owner)
+	/**
+	 * Reads the next `size` seed Artists, from `cursor` (0 to start), and saves a Suggestion for each one that
+	 * has an Album the Owner does not know. Stops at the cap of 20 pending Suggestions.
+	 */
+	findSuggestions(
+		token: string,
+		input: { size: number; cursor?: number }
+	): Promise<SuggestionProgress>;
+	/** Pending Suggestions: not owned, not on the Wishlist, not Discarded. Seed rank first. */
+	listSuggestions(token: string): Promise<SuggestionView[]>;
+	/** Puts the Suggestion on the Wishlist with Desire 2. */
+	addSuggestion(token: string, id: number): Promise<void>;
+	/** Puts the Album of the Suggestion on the Discarded list. */
+	discardSuggestion(token: string, id: number): Promise<void>;
 
 	// Records (Owner)
 	addRecord(token: string, input: AddRecordInput): Promise<RecordView>;
