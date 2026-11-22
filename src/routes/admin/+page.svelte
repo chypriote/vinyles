@@ -49,8 +49,8 @@
 
 	let finding = $state(false);
 	let suggestionError = $state<string | null>(null);
-	/** Suggestion ids and Album ids whose request runs. */
-	let busy = $state<string | null>(null);
+	/** Row keys (`add-3`, `discard-3`, `undiscard-7`) whose request runs. Rows run independently. */
+	let busy = $state<string[]>([]);
 	let brokenCovers = $state<number[]>([]);
 
 	/** One batch of seed Artists per request, until the run is over. */
@@ -86,7 +86,7 @@
 	}
 
 	async function act(url: string, key: string) {
-		busy = key;
+		busy = [...busy, key];
 		suggestionError = null;
 		try {
 			const response = await fetch(url, { method: 'POST' });
@@ -99,9 +99,12 @@
 		} catch {
 			suggestionError = 'Network error';
 		} finally {
-			busy = null;
+			busy = busy.filter((k) => k !== key);
 		}
 	}
+
+	/** True while any of the row's actions runs. */
+	const rowBusy = (...keys: string[]) => keys.some((key) => busy.includes(key));
 
 	const coverUrl = (s: SuggestionView) =>
 		`https://coverartarchive.org/release-group/${encodeURIComponent(s.musicbrainzId ?? '')}/front-250`;
@@ -216,8 +219,8 @@
 						<div class="flex gap-2">
 							<Button
 								intent="success"
-								loading={busy === `add-${suggestion.id}`}
-								disabled={busy !== null}
+								loading={busy.includes(`add-${suggestion.id}`)}
+								disabled={rowBusy(`add-${suggestion.id}`, `discard-${suggestion.id}`)}
 								onclick={() =>
 									act(`/api/admin/suggestions/${suggestion.id}/add`, `add-${suggestion.id}`)}
 							>
@@ -225,8 +228,8 @@
 							</Button>
 							<Button
 								intent="danger"
-								loading={busy === `discard-${suggestion.id}`}
-								disabled={busy !== null}
+								loading={busy.includes(`discard-${suggestion.id}`)}
+								disabled={rowBusy(`add-${suggestion.id}`, `discard-${suggestion.id}`)}
 								onclick={() =>
 									act(
 										`/api/admin/suggestions/${suggestion.id}/discard`,
@@ -251,8 +254,8 @@
 							<span class="text-sm text-muted-foreground">{album.artist}</span>
 						</div>
 						<Button
-							loading={busy === `undiscard-${album.albumId}`}
-							disabled={busy !== null}
+							loading={busy.includes(`undiscard-${album.albumId}`)}
+							disabled={busy.includes(`undiscard-${album.albumId}`)}
 							onclick={() =>
 								act(
 									`/api/admin/discarded/${album.albumId}/undiscard`,
