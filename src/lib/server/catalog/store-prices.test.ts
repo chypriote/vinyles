@@ -74,6 +74,32 @@ describe('cheapestMatch', () => {
 		).not.toBeNull();
 	});
 
+	it('tolerates a one-letter typo in a long word, such as the Album typed Devine for Divine', () => {
+		const epica = [
+			{ name: 'Epica - The Divine Conspiracy Ltd. Marbled 2 Vinyl', priceCents: 4500, url: null },
+			{
+				name: 'Epica - Consign To Oblivion (Expanded Edition) - 2 Vinyl',
+				priceCents: 3000,
+				url: null
+			}
+		];
+		expect(cheapestMatch(epica, 'Epica', 'The Devine Conspiracy')?.priceCents).toBe(4500);
+		expect(cheapestMatch(epica, 'Epica', 'The Phantom Agony')).toBeNull();
+	});
+
+	it('does not tolerate a typo in a short word, or two wrong letters', () => {
+		expect(cheapestMatch(offers, 'Air', 'Moan Safari')).toBeNull();
+		expect(cheapestMatch(offers, 'Air', 'Talkie Wolkee')).toBeNull();
+	});
+
+	it('finds nothing when the shop lists other records with similar words', () => {
+		const other = [
+			{ name: 'Grave Digger - Faces Of Pain Ltd. - Picture Vinyl', priceCents: 3000, url: null },
+			{ name: 'Small Faces: Vinyl LP', priceCents: 2000, url: null }
+		];
+		expect(cheapestMatch(other, 'Dynazty', 'Game Of Faces')).toBeNull();
+	});
+
 	it('finds nothing for another Album', () => {
 		expect(cheapestMatch(offers, 'Air', '10 000 Hz Legend')).toBeNull();
 		expect(cheapestMatch(offers, 'Daft Punk', 'Talkie Walkie')).toBeNull();
