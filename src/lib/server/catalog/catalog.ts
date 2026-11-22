@@ -28,6 +28,7 @@ import {
 	findCandidateImage,
 	findCover,
 	findReleaseCandidates,
+	readBody,
 	searchCandidates,
 	searchDiscogs,
 	searchTypedCandidates
@@ -82,6 +83,7 @@ type BatchStatements = Parameters<Db['batch']>[0];
 const HEADER_BYTES = 64 * 1024;
 const UPLOAD_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const MAX_UPLOAD_BYTES = 2 * 1024 * 1024;
+const CANDIDATE_SOURCES: string[] = ['release', 'release-group', 'discogs'];
 const MAX_PAGE_BYTES = 5 * 1024 * 1024;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 /** Browser-like: some Stores refuse a script. */
@@ -151,25 +153,6 @@ function sortBy<T extends { id: number; album: AlbumSummary }>(
 		}
 		return byAlbum(a.album, b.album) || a.id - b.id;
 	});
-}
-
-/** The body of a response, or null once it passes `max` bytes: the read stops there. */
-async function readBody(response: Response, max: number): Promise<Uint8Array | null> {
-	if (!response.body) return new Uint8Array();
-	const reader = response.body.getReader();
-	const chunks: Uint8Array[] = [];
-	let size = 0;
-	for (;;) {
-		const { done, value } = await reader.read();
-		if (done) break;
-		size += value.byteLength;
-		if (size > max) {
-			await reader.cancel();
-			return null;
-		}
-		chunks.push(value);
-	}
-	return new Uint8Array(await new Blob(chunks as BlobPart[]).arrayBuffer());
 }
 
 export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Catalog {
@@ -732,15 +715,31 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 			return [...musicBrainz, ...discogs];
 		},
 
+		async rateCoverCandidate(token, input) {
+			await owner(token);
+			if (!CANDIDATE_SOURCES.includes(input.source)) throw new Error('Unknown candidate');
+			const image = await findCandidateImage(
+				input.source,
+				input.candidateId,
+				env.DISCOGS_TOKEN,
+				MAX_UPLOAD_BYTES
+			);
+			if (!image) return { reason: 'No cover' };
+			return {
+				reason: checkCoverImage(
+					image.body.byteLength,
+					new Uint8Array(image.body, 0, Math.min(HEADER_BYTES, image.body.byteLength))
+				)
+			};
+		},
+
 		async pickCover(token, input) {
 			await owner(token);
 			const album = (
 				await db.select({ id: albums.id }).from(albums).where(eq(albums.id, input.albumId))
 			)[0];
 			if (!album) throw new Error('Album not found');
-			if (!['release', 'release-group', 'discogs'].includes(input.source)) {
-				throw new Error('Unknown candidate');
-			}
+			if (!CANDIDATE_SOURCES.includes(input.source)) throw new Error('Unknown candidate');
 			const image = await findCandidateImage(input.source, input.candidateId, env.DISCOGS_TOKEN);
 			if (!image) throw new Error('This candidate has no image');
 			await storeCover(album.id, image.body, image.contentType);

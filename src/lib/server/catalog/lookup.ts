@@ -3,6 +3,25 @@ import { normalize, type StudioAlbum } from './suggestions';
 const USER_AGENT = 'vinyles/0.1 (personal record collection; https://github.com/chypriote/vinyles)';
 const MIN_SCORE = 90;
 
+/** The body of a response, or null once it passes `max` bytes: the read stops there. */
+export async function readBody(response: Response, max: number): Promise<Uint8Array | null> {
+	if (!response.body) return new Uint8Array();
+	const reader = response.body.getReader();
+	const chunks: Uint8Array[] = [];
+	let size = 0;
+	for (;;) {
+		const { done, value } = await reader.read();
+		if (done) break;
+		size += value.byteLength;
+		if (size > max) {
+			await reader.cancel();
+			return null;
+		}
+		chunks.push(value);
+	}
+	return new Uint8Array(await new Blob(chunks as BlobPart[]).arrayBuffer());
+}
+
 /** Next time (ms since epoch) a MusicBrainz request may start. Shared by every Catalog in the isolate. */
 let nextSlot = 0;
 
@@ -59,13 +78,22 @@ export function findCover(musicbrainzId: string): Promise<FoundCover | null> {
 
 async function fetchCover(
 	url: string,
-	headers: Record<string, string> = {}
+	headers: Record<string, string> = {},
+	maxBytes?: number
 ): Promise<FoundCover | null> {
 	const response = await fetch(url, { headers: { 'User-Agent': USER_AGENT, ...headers } });
 	if (response.status === 404) return null;
 	if (!response.ok) throw new Error(`Cover Art Archive answered ${response.status}`);
+	let body: ArrayBuffer;
+	if (maxBytes === undefined) {
+		body = await response.arrayBuffer();
+	} else {
+		const bytes = await readBody(response, maxBytes);
+		if (!bytes) throw new Error('The image is too large');
+		body = bytes.buffer as ArrayBuffer;
+	}
 	return {
-		body: await response.arrayBuffer(),
+		body,
 		contentType: response.headers.get('content-type') ?? 'image/jpeg'
 	};
 }
@@ -279,12 +307,13 @@ export async function searchDiscogs(text: string, token: string): Promise<FoundC
 export function findCandidateImage(
 	source: CoverSource,
 	id: string,
-	discogsToken?: string
+	discogsToken?: string,
+	maxBytes?: number
 ): Promise<FoundCover | null> {
-	if (source !== 'discogs') return fetchCover(imageUrl(source, id, 500));
+	if (source !== 'discogs') return fetchCover(imageUrl(source, id, 500), {}, maxBytes);
 	const url = new URL(id);
 	if (url.protocol !== 'https:' || url.host !== DISCOGS_IMAGE_HOST || !discogsToken) {
 		throw new Error('Unknown candidate');
 	}
-	return fetchCover(url.href, { Authorization: `Discogs token=${discogsToken}` });
+	return fetchCover(url.href, { Authorization: `Discogs token=${discogsToken}` }, maxBytes);
 }

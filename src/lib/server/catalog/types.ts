@@ -359,6 +359,11 @@ export interface Catalog {
 	listCoverCandidates(token: string, albumId: number): Promise<CoverCandidate[]>;
 	/** Candidate images for text the Owner typed (release-group search). */
 	searchCoverCandidates(token: string, query: string): Promise<CoverCandidate[]>;
+	/** Runs the Cover quality check on the image of a candidate: the reason it fails, or null. */
+	rateCoverCandidate(
+		token: string,
+		input: { candidateId: string; source: CoverCandidate['source'] }
+	): Promise<{ reason: string | null }>;
 	/** Copies the picked image over the Cover of the Album and marks it Owner-chosen. */
 	pickCover(token: string, input: PickCoverInput): Promise<void>;
 	/** Uses an uploaded JPEG, PNG or WebP image (under 2 MB) as the Cover of the Album. */
