@@ -191,7 +191,12 @@ export interface EditWishlistItemInput {
 	artist: string;
 	album: string;
 	variant?: string | null;
+	/** Set to true after the "Already owned" notice. */
+	addAnyway?: boolean;
 }
+
+export type EditWishlistItemResult =
+	{ status: 'edited'; item: WishlistItemView } | { status: 'already-owned'; records: RecordView[] };
 
 export type AddWishlistItemResult =
 	{ status: 'added'; item: WishlistItemView } | { status: 'already-owned'; records: RecordView[] };
@@ -389,7 +394,7 @@ export interface Catalog {
 
 	// Wishlist (Owner)
 	addWishlistItem(token: string, input: AddWishlistItemInput): Promise<AddWishlistItemResult>;
-	editWishlistItem(token: string, input: EditWishlistItemInput): Promise<WishlistItemView>;
+	editWishlistItem(token: string, input: EditWishlistItemInput): Promise<EditWishlistItemResult>;
 	gotIt(token: string, input: GotItInput): Promise<RecordView>;
 	/** Removes the Wishlist Item and puts its Album on the Discarded list. An unknown item is ignored. */
 	discard(token: string, wishlistItemId: number): Promise<void>;

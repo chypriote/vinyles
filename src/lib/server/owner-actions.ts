@@ -61,7 +61,8 @@ export const ownerActions = {
 		}),
 	editWishlistItem: (event: RequestEvent) =>
 		run<EditWishlistItemInput>(event, async (catalog, token, input) => {
-			await catalog.editWishlistItem(token, input);
+			const result = await catalog.editWishlistItem(token, input);
+			return { alreadyOwned: result.status === 'already-owned' };
 		}),
 	gotIt: (event: RequestEvent) =>
 		run<GotItInput>(event, async (catalog, token, input) => {
