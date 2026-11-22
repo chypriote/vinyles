@@ -1,0 +1,1 @@
+ALTER TABLE `store` ADD `product_links_enabled` integer DEFAULT true NOT NULL;

@@ -16,9 +16,11 @@
 		itemId: number;
 		links: ProductLink[];
 		quotes: PriceQuote[];
-		stores: { id: number; name: string }[];
+		stores: { id: number; name: string; productLinksEnabled: boolean }[];
 		onDone: () => void;
 	} = $props();
+
+	const offered = $derived(stores.filter((s) => s.productLinksEnabled));
 
 	let storeId = $state('');
 	let url = $state('');
@@ -112,7 +114,7 @@
 		</ul>
 	{/if}
 	<form class="flex flex-col gap-4" onsubmit={save}>
-		<StoreSelect bind:value={storeId} {stores} onAddStore={addStore} />
+		<StoreSelect bind:value={storeId} stores={offered} onAddStore={addStore} />
 		<Field label="Product page address" required bind:value={url} />
 		{#if error}<p class="text-sm font-medium text-foreground" role="alert">! {error}</p>{/if}
 		<div class="flex flex-wrap gap-2">

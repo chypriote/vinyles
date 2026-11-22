@@ -289,6 +289,20 @@ describe('Stores', () => {
 		expect((await catalog.listStores()).map((s) => s.name)).toEqual([OFFICIAL]);
 	});
 
+	it('shows every Store in the Product Links select until the Owner hides it', async () => {
+		const fnac = await catalog.addStore(token, { name: 'Fnac' });
+		const flags = async () =>
+			Object.fromEntries((await catalog.listStores()).map((s) => [s.name, s.productLinksEnabled]));
+		expect(await flags()).toEqual({ Fnac: true, [OFFICIAL]: true });
+		await catalog.setStoreProductLinksEnabled(token, fnac.id, false);
+		expect(await flags()).toEqual({ Fnac: false, [OFFICIAL]: true });
+		await catalog.setStoreProductLinksEnabled(token, fnac.id, true);
+		expect(await flags()).toEqual({ Fnac: true, [OFFICIAL]: true });
+		await expect(
+			catalog.setStoreProductLinksEnabled('not-a-token', fnac.id, false)
+		).rejects.toThrow(UnauthorizedError);
+	});
+
 	it('adds a Store at once, sorted by name, without duplicating one that exists', async () => {
 		const fnac = await catalog.addStore(token, { name: ' Fnac ' });
 		expect(fnac.name).toBe('Fnac');

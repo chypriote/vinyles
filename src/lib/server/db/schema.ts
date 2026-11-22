@@ -40,7 +40,9 @@ export const albums = sqliteTable(
 
 export const stores = sqliteTable('store', {
 	id: integer('id').primaryKey({ autoIncrement: true }),
-	name: text('name').notNull().unique()
+	name: text('name').notNull().unique(),
+	/** False hides the Store from the Product Links select. */
+	productLinksEnabled: integer('product_links_enabled', { mode: 'boolean' }).notNull().default(true)
 });
 
 export const records = sqliteTable('record', {

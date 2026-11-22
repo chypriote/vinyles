@@ -103,6 +103,27 @@
 		}
 	}
 
+	async function setStoreEnabled(id: number, enabled: boolean) {
+		const key = `store-${id}`;
+		busy = [...busy, key];
+		suggestionError = null;
+		try {
+			const response = await fetch(`/api/admin/stores/${id}/product-links`, {
+				method: 'POST',
+				body: JSON.stringify({ enabled })
+			});
+			if (!response.ok) {
+				suggestionError =
+					((await response.json()) as { error?: string }).error ?? 'The change failed';
+			}
+			await invalidateAll();
+		} catch {
+			suggestionError = 'Network error';
+		} finally {
+			busy = busy.filter((k) => k !== key);
+		}
+	}
+
 	/** True while any of the row's actions runs. */
 	const rowBusy = (...keys: string[]) => keys.some((key) => busy.includes(key));
 
@@ -117,6 +138,26 @@
 		<h1>Admin</h1>
 		<UiButton variant="neutral" href="/">Back home</UiButton>
 	</div>
+	<section class="flex min-w-0 flex-col gap-3">
+		<h2 class="text-sm font-bold">Stores in Product links</h2>
+		<p class="text-sm text-muted-foreground">Checked Stores show in the Product links select.</p>
+		<ul class="flex flex-wrap gap-x-6 gap-y-2">
+			{#each data.stores as store (store.id)}
+				<li>
+					<label class="flex items-center gap-2 text-sm font-medium">
+						<input
+							type="checkbox"
+							class="size-5 accent-primary"
+							checked={store.productLinksEnabled}
+							disabled={busy.includes(`store-${store.id}`)}
+							onchange={(e) => setStoreEnabled(store.id, e.currentTarget.checked)}
+						/>
+						{store.name}
+					</label>
+				</li>
+			{/each}
+		</ul>
+	</section>
 	<div class="grid grid-cols-1 items-start gap-8 lg:grid-cols-3">
 		<section class="flex min-w-0 flex-col gap-3">
 			<h2 class="text-sm font-bold">Failing covers</h2>

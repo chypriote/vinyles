@@ -900,9 +900,14 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 			await owner(token);
 			const name = required(input.name, 'Store name');
 			const existing = (await db.select().from(stores)).find((s) => compare(s.name, name) === 0);
-			if (existing) return existing;
+			if (existing) return { id: existing.id, name: existing.name };
 			const [created] = await db.insert(stores).values({ name }).returning();
-			return created;
+			return { id: created.id, name: created.name };
+		},
+
+		async setStoreProductLinksEnabled(token, storeId, enabled) {
+			await owner(token);
+			await db.update(stores).set({ productLinksEnabled: enabled }).where(eq(stores.id, storeId));
 		},
 
 		async addWishlistItem(token, input) {
