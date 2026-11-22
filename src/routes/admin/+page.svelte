@@ -109,162 +109,163 @@
 
 <svelte:head><title>Vinyles | Admin</title></svelte:head>
 
-<main class="mx-auto flex max-w-2xl flex-col gap-6 px-4 py-8">
+<main class="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-8">
 	<div class="flex items-center justify-between gap-3">
 		<h1>Admin</h1>
 		<UiButton variant="neutral" href="/">Back home</UiButton>
 	</div>
-
-	<section class="flex flex-col gap-3">
-		<h2 class="text-sm font-bold">Cover quality</h2>
-		<p class="text-sm font-medium" aria-live="polite">
-			{data.failing.length} failing · {data.progress.pending} to check
-		</p>
-		<div>
-			<Button loading={running} disabled={data.progress.pending === 0} onclick={runCheck}>
-				Check covers
-			</Button>
-		</div>
-		{#if error}<p class="text-sm font-medium" role="alert">! {error}</p>{/if}
-	</section>
-
-	<section class="flex flex-col gap-3">
-		<h2 class="text-sm font-bold">Suggestions</h2>
-		<p class="text-sm font-medium" aria-live="polite">
-			{data.suggestions.length} of {data.maxSuggestions} pending
-		</p>
-		<div>
-			<Button
-				loading={finding}
-				disabled={data.suggestions.length >= data.maxSuggestions}
-				onclick={findSuggestions}
-			>
-				Find suggestions
-			</Button>
-		</div>
-		{#if suggestionError}<p class="text-sm font-medium" role="alert">! {suggestionError}</p>{/if}
-		<ul class="flex flex-col gap-4">
-			{#each data.suggestions as suggestion (suggestion.id)}
-				<li class="flex flex-wrap items-center gap-3">
-					{#if suggestion.musicbrainzId && !brokenCovers.includes(suggestion.id)}
-						<img
-							src={coverUrl(suggestion)}
-							alt=""
-							loading="lazy"
-							class="size-14 shrink-0 rounded-(--cover-radius) object-cover"
-							onerror={() => (brokenCovers = [...brokenCovers, suggestion.id])}
-						/>
-					{:else}
-						<span
-							aria-hidden="true"
-							class="flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-(--cover-radius) text-lg font-extrabold text-primary-foreground {tileClass(
-								suggestion.artist
-							)}"
-						>
-							{initials(suggestion.artist)}
-						</span>
-					{/if}
-					<div class="flex min-w-0 flex-1 flex-col">
-						<span class="text-sm font-bold">{suggestion.title}</span>
-						<span class="text-sm text-muted-foreground">
-							{suggestion.artist}{suggestion.releaseYear ? ` · ${suggestion.releaseYear}` : ''}
-						</span>
-						<span class="text-sm">{suggestion.reason}</span>
-					</div>
-					<div class="flex gap-2">
-						<Button
-							intent="success"
-							loading={busy === `add-${suggestion.id}`}
-							disabled={busy !== null}
-							onclick={() =>
-								act(`/api/admin/suggestions/${suggestion.id}/add`, `add-${suggestion.id}`)}
-						>
-							Add
-						</Button>
-						<Button
-							intent="danger"
-							loading={busy === `discard-${suggestion.id}`}
-							disabled={busy !== null}
-							onclick={() =>
-								act(`/api/admin/suggestions/${suggestion.id}/discard`, `discard-${suggestion.id}`)}
-						>
-							Discard
-						</Button>
-					</div>
-				</li>
-			{/each}
-		</ul>
-	</section>
-
-	<section class="flex flex-col gap-3">
-		<h2 class="text-sm font-bold">Discarded</h2>
-		<p class="text-sm font-medium">{data.discarded.length} discarded</p>
-		<ul class="flex flex-col gap-3">
-			{#each data.discarded as album (album.albumId)}
-				<li class="flex flex-wrap items-center gap-3">
-					<div class="flex min-w-0 flex-1 flex-col">
-						<span class="text-sm font-bold">{album.title}</span>
-						<span class="text-sm text-muted-foreground">{album.artist}</span>
-					</div>
-					<Button
-						loading={busy === `undiscard-${album.albumId}`}
-						disabled={busy !== null}
-						onclick={() =>
-							act(`/api/admin/discarded/${album.albumId}/undiscard`, `undiscard-${album.albumId}`)}
-					>
-						Undiscard
-					</Button>
-				</li>
-			{/each}
-		</ul>
-	</section>
-
-	{#if data.failing.length > 0}
-		<section class="flex flex-col gap-3">
+	<div class="grid grid-cols-1 items-start gap-8 lg:grid-cols-3">
+		<section class="flex min-w-0 flex-col gap-3">
 			<h2 class="text-sm font-bold">Failing covers</h2>
+			<p class="text-sm font-medium" aria-live="polite">
+				{data.failing.length} failing · {data.progress.pending} to check
+			</p>
+			<div>
+				<Button loading={running} disabled={data.progress.pending === 0} onclick={runCheck}>
+					Check covers
+				</Button>
+			</div>
+			{#if error}<p class="text-sm font-medium" role="alert">! {error}</p>{/if}
+			{#if data.failing.length > 0}
+				<ul class="flex flex-col gap-4">
+					{#each data.failing as album (album.albumId)}
+						<li class="flex flex-wrap items-center gap-3">
+							{#if album.coverKey}
+								<img
+									src="/covers/{album.albumId}?v={album.coverVersion}"
+									alt=""
+									loading="lazy"
+									class="size-14 shrink-0 rounded-(--cover-radius) object-cover"
+								/>
+							{:else}
+								<span
+									aria-hidden="true"
+									class="flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-(--cover-radius) text-lg font-extrabold text-primary-foreground {tileClass(
+										album.artist
+									)}"
+								>
+									{initials(album.artist)}
+								</span>
+							{/if}
+							<div class="flex min-w-0 flex-1 flex-col">
+								<span class="text-sm font-bold">{album.title}</span>
+								<span class="text-sm text-muted-foreground">{album.artist}</span>
+								<span class="text-sm">{album.reason}</span>
+								<span class="text-xs font-medium text-muted-foreground">
+									{[album.inCollection && 'Collection', album.inWishlist && 'Wishlist']
+										.filter(Boolean)
+										.join(' + ')}
+								</span>
+							</div>
+							<Button
+								onclick={() => {
+									changing = album;
+									open = true;
+								}}
+							>
+								Change cover
+							</Button>
+						</li>
+					{/each}
+				</ul>
+			{/if}
+		</section>
+		<section class="flex min-w-0 flex-col gap-3">
+			<h2 class="text-sm font-bold">Suggestions</h2>
+			<p class="text-sm font-medium" aria-live="polite">
+				{data.suggestions.length} of {data.maxSuggestions} pending
+			</p>
+			<div>
+				<Button
+					loading={finding}
+					disabled={data.suggestions.length >= data.maxSuggestions}
+					onclick={findSuggestions}
+				>
+					Find suggestions
+				</Button>
+			</div>
+			{#if suggestionError}<p class="text-sm font-medium" role="alert">! {suggestionError}</p>{/if}
 			<ul class="flex flex-col gap-4">
-				{#each data.failing as album (album.albumId)}
+				{#each data.suggestions as suggestion (suggestion.id)}
 					<li class="flex flex-wrap items-center gap-3">
-						{#if album.coverKey}
+						{#if suggestion.musicbrainzId && !brokenCovers.includes(suggestion.id)}
 							<img
-								src="/covers/{album.albumId}?v={album.coverVersion}"
+								src={coverUrl(suggestion)}
 								alt=""
 								loading="lazy"
 								class="size-14 shrink-0 rounded-(--cover-radius) object-cover"
+								onerror={() => (brokenCovers = [...brokenCovers, suggestion.id])}
 							/>
 						{:else}
 							<span
 								aria-hidden="true"
 								class="flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-(--cover-radius) text-lg font-extrabold text-primary-foreground {tileClass(
-									album.artist
+									suggestion.artist
 								)}"
 							>
-								{initials(album.artist)}
+								{initials(suggestion.artist)}
 							</span>
 						{/if}
 						<div class="flex min-w-0 flex-1 flex-col">
+							<span class="text-sm font-bold">{suggestion.title}</span>
+							<span class="text-sm text-muted-foreground">
+								{suggestion.artist}{suggestion.releaseYear ? ` · ${suggestion.releaseYear}` : ''}
+							</span>
+							<span class="text-sm">{suggestion.reason}</span>
+						</div>
+						<div class="flex gap-2">
+							<Button
+								intent="success"
+								loading={busy === `add-${suggestion.id}`}
+								disabled={busy !== null}
+								onclick={() =>
+									act(`/api/admin/suggestions/${suggestion.id}/add`, `add-${suggestion.id}`)}
+							>
+								Add
+							</Button>
+							<Button
+								intent="danger"
+								loading={busy === `discard-${suggestion.id}`}
+								disabled={busy !== null}
+								onclick={() =>
+									act(
+										`/api/admin/suggestions/${suggestion.id}/discard`,
+										`discard-${suggestion.id}`
+									)}
+							>
+								Discard
+							</Button>
+						</div>
+					</li>
+				{/each}
+			</ul>
+		</section>
+		<section class="flex min-w-0 flex-col gap-3">
+			<h2 class="text-sm font-bold">Discarded</h2>
+			<p class="text-sm font-medium">{data.discarded.length} discarded</p>
+			<ul class="flex flex-col gap-3">
+				{#each data.discarded as album (album.albumId)}
+					<li class="flex flex-wrap items-center gap-3">
+						<div class="flex min-w-0 flex-1 flex-col">
 							<span class="text-sm font-bold">{album.title}</span>
 							<span class="text-sm text-muted-foreground">{album.artist}</span>
-							<span class="text-sm">{album.reason}</span>
-							<span class="text-xs font-medium text-muted-foreground">
-								{[album.inCollection && 'Collection', album.inWishlist && 'Wishlist']
-									.filter(Boolean)
-									.join(' + ')}
-							</span>
 						</div>
 						<Button
-							onclick={() => {
-								changing = album;
-								open = true;
-							}}
+							loading={busy === `undiscard-${album.albumId}`}
+							disabled={busy !== null}
+							onclick={() =>
+								act(
+									`/api/admin/discarded/${album.albumId}/undiscard`,
+									`undiscard-${album.albumId}`
+								)}
 						>
-							Change cover
+							Undiscard
 						</Button>
 					</li>
 				{/each}
 			</ul>
 		</section>
-	{/if}
+	</div>
 </main>
 
 {#if changing}
