@@ -911,8 +911,21 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 				.where(or(isNull(wishlistItems.refreshedAt), lte(wishlistItems.refreshedAt, cutoff)))
 				.orderBy(sql`${wishlistItems.refreshedAt} ASC NULLS FIRST`, wishlistItems.id)
 				.limit(size);
-			for (const { id } of due) await refreshItem(id);
-			return { refreshed: due.length };
+			let refreshed = 0;
+			for (const { id } of due) {
+				try {
+					await refreshItem(id);
+					refreshed++;
+				} catch (error) {
+					// Stamp the item so the next run moves on to the ones behind it.
+					console.error(`Refresh of Wishlist Item ${id} failed`, error);
+					await db
+						.update(wishlistItems)
+						.set({ refreshedAt: new Date().toISOString() })
+						.where(eq(wishlistItems.id, id));
+				}
+			}
+			return { refreshed };
 		},
 
 		async setProductLink(token, input) {

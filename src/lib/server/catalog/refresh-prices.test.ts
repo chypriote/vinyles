@@ -348,6 +348,32 @@ describe('Refresh of the oldest items', () => {
 		await catalog.refreshOldest({ size: 1, olderThanDays: 14 });
 		expect(await refreshedAt(id)).not.toBeNull();
 	});
+
+	it('skips an item that throws, stamps it, and still refreshes the others', async () => {
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+		const failing = await add('Failing');
+		const fine = await add('Fine');
+		pages.set(
+			host('Nuclear Blast'),
+			suggestions(
+				{ title: 'Air Failing', price: '20', url: '/products/a' },
+				{ title: 'Air Fine', price: '25', url: '/products/b' }
+			)
+		);
+		await env.DB.prepare(
+			`CREATE TRIGGER fail_quote BEFORE INSERT ON price_quote WHEN NEW.wishlist_item_id = ${failing}
+			 BEGIN SELECT RAISE(ABORT, 'boom'); END`
+		).run();
+		try {
+			expect(await catalog.refreshOldest({ size: 5, olderThanDays: 14 })).toEqual({ refreshed: 1 });
+		} finally {
+			await env.DB.prepare('DROP TRIGGER fail_quote').run();
+		}
+		expect(await refreshedAt(failing)).not.toBeNull();
+		expect(await refreshedAt(fine)).not.toBeNull();
+		const quotes = await env.DB.prepare('SELECT wishlist_item_id AS id FROM price_quote').all();
+		expect(quotes.results).toEqual([{ id: fine }]);
+	});
 });
 
 describe('Refresh of the oldest items', () => {
