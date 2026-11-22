@@ -30,6 +30,8 @@
 	let confirmOpen = $state(false);
 	let busy = $state(false);
 	let failed = $state<string[]>([]);
+	/** The quality check of each candidate: its failure reason, null when it passes. Missing until rated. */
+	let ratings = $state<Record<string, string | null>>({});
 	const loading = $derived(candidates === null && !error);
 	const key = (c: CoverCandidate) => c.source + c.id;
 	// A candidate whose image does not load is left out.
@@ -44,6 +46,7 @@
 		error = null;
 		candidates = null;
 		failed = [];
+		ratings = {};
 		try {
 			const response = await fetch(url);
 			const body = (await response.json()) as { candidates?: CoverCandidate[]; error?: string };
@@ -54,6 +57,32 @@
 			if (mine === latest) error = 'Could not load covers';
 		}
 	}
+
+	const RATING_PARALLEL = 3;
+
+	/** Rates the candidates a few at a time: each one is a request to the server. */
+	async function rate(list: CoverCandidate[], mine: number) {
+		const queue = [...list];
+		const worker = async () => {
+			for (let next = queue.shift(); next && mine === latest; next = queue.shift()) {
+				try {
+					const params = new URLSearchParams({ source: next.source, id: next.id });
+					const response = await fetch(`/api/albums/${albumId}/cover-candidates/rating?${params}`);
+					if (!response.ok) continue;
+					const { reason } = (await response.json()) as { reason: string | null };
+					if (mine === latest) ratings[key(next)] = reason;
+				} catch {
+					// The candidate stays unrated.
+				}
+			}
+		};
+		await Promise.all(Array.from({ length: RATING_PARALLEL }, worker));
+	}
+
+	$effect(() => {
+		const list = candidates;
+		if (list?.length) untrack(() => rate(list, latest));
+	});
 
 	// Candidates load only when the picker opens (it is mounted per opening).
 	$effect(() => {
@@ -288,6 +317,17 @@
 						<span class="block truncate text-[11px] leading-tight text-muted-foreground">
 							{candidate.source === 'discogs' ? 'Discogs' : 'MusicBrainz'}
 						</span>
+						{#if key(candidate) in ratings}
+							{@const reason = ratings[key(candidate)]}
+							<span
+								class="block truncate text-[11px] leading-tight {reason
+									? 'text-destructive'
+									: 'text-muted-foreground'}"
+								title={reason ?? 'Passes the quality check'}
+							>
+								{reason ?? 'Good quality'}
+							</span>
+						{/if}
 					</button>
 				</li>
 			{/each}

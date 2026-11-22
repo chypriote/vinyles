@@ -28,11 +28,11 @@ interface FakeAlbum {
 	year: number;
 	mbid: string;
 	/** Cover bytes, or null for no Cover. */
-	cover: string | null;
+	cover: string | ArrayBuffer | null;
 	/** MusicBrainz search score, 100 when omitted. Under 90 the lookup finds no match. */
 	score?: number;
 	/** Releases of the release group, each with its own front image (or none). */
-	releases?: { id: string; cover: string | null }[];
+	releases?: { id: string; cover: string | ArrayBuffer | null }[];
 }
 
 interface FakeCall {
@@ -1782,5 +1782,42 @@ describe('Cover quality check', () => {
 		await expect(catalog.checkCovers('bad', { size: 5 })).rejects.toThrow(UnauthorizedError);
 		await expect(catalog.coverCheckProgress('bad')).rejects.toThrow(UnauthorizedError);
 		await expect(catalog.listFailingCovers('bad')).rejects.toThrow(UnauthorizedError);
+	});
+
+	describe('of a cover search result', () => {
+		it('rates a candidate image with the same check as a stored Cover', async () => {
+			fakeAlbums.push({
+				artist: 'Air',
+				title: 'Moon Safari',
+				year: 1998,
+				mbid: 'mb-air',
+				cover: png(500, 500),
+				releases: [
+					{ id: 'rel-small', cover: png(300, 300) },
+					{ id: 'rel-none', cover: null }
+				]
+			});
+			const rate = (
+				candidateId: string,
+				source: 'release' | 'release-group' | 'discogs' = 'release'
+			) => catalog.rateCoverCandidate(token, { candidateId, source });
+			expect(await rate('mb-air', 'release-group')).toEqual({ reason: null });
+			expect(await rate('rel-small')).toEqual({
+				reason: 'Too small: 300×300 px (at least 400 px)'
+			});
+			expect(await rate('rel-none')).toEqual({ reason: 'No cover' });
+			expect(await rate('https://i.discogs.com/full.jpg', 'discogs')).toEqual({
+				reason: 'Unreadable image'
+			});
+		});
+
+		it('refuses a visitor and an unknown source', async () => {
+			await expect(
+				catalog.rateCoverCandidate('bad', { candidateId: 'x', source: 'release' })
+			).rejects.toThrow();
+			await expect(
+				catalog.rateCoverCandidate(token, { candidateId: 'x', source: 'web' as never })
+			).rejects.toThrow('Unknown candidate');
+		});
 	});
 });
