@@ -116,18 +116,42 @@ function absolute(url: Json, base: string): string | null {
 }
 
 const words = (text: string) =>
-	` ${text
+	text
 		.normalize('NFD')
 		.replace(/\p{M}/gu, '')
 		.toLowerCase()
 		.replace(/[^\p{L}\p{N}]+/gu, ' ')
-		.trim()} `;
+		.trim()
+		.split(' ')
+		.filter(Boolean);
 
-/** The cheapest offer whose name contains the Artist and the Album. The Variant is ignored. */
+/** True when the two words differ by one letter at most (inserted, removed or changed). */
+function oneLetterApart(a: string, b: string): boolean {
+	if (Math.abs(a.length - b.length) > 1) return false;
+	let i = 0;
+	while (i < a.length && i < b.length && a[i] === b[i]) i += 1;
+	return (
+		a.slice(i + 1) === b.slice(i + 1) ||
+		a.slice(i) === b.slice(i + 1) ||
+		a.slice(i + 1) === b.slice(i)
+	);
+}
+
+/** Every word of the phrase is in the name. A word of 5 letters or more may have one letter wrong. */
+function hasWords(name: string[], phrase: string) {
+	return words(phrase).every((word) =>
+		name.some((n) => n === word || (word.length >= 5 && oneLetterApart(n, word)))
+	);
+}
+
+/**
+ * The cheapest offer whose name has the words of the Artist and of the Album, in any order.
+ * A typo of one letter in a long word is tolerated. The Variant is ignored.
+ */
 export function cheapestMatch(offers: Offer[], artist: string, album: string): Offer | null {
 	const matches = offers.filter((o) => {
 		const name = words(o.name);
-		return name.includes(words(artist)) && name.includes(words(album));
+		return hasWords(name, artist) && hasWords(name, album);
 	});
 	return matches.sort((a, b) => a.priceCents - b.priceCents)[0] ?? null;
 }
