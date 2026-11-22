@@ -246,7 +246,8 @@
 		<section class="flex min-w-0 flex-col gap-3">
 			<h2 class="text-sm font-bold">Discarded</h2>
 			<p class="text-sm font-medium">{data.discarded.length} discarded</p>
-			<ul class="flex flex-col gap-3">
+			<!-- The page does not grow with the list: it scrolls inside the column. -->
+			<ul class="flex max-h-[calc(100dvh-10rem)] flex-col gap-3 overflow-y-auto pr-1">
 				{#each data.discarded as album (album.albumId)}
 					<li class="flex flex-wrap items-center gap-3">
 						<div class="flex min-w-0 flex-1 flex-col">
