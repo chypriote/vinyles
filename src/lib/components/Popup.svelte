@@ -13,6 +13,7 @@
 		large = false,
 		onDismiss,
 		details,
+		below,
 		actions
 	}: {
 		open?: boolean;
@@ -28,6 +29,8 @@
 		large?: boolean;
 		onDismiss?: () => void;
 		details?: Snippet;
+		/** Full width under the cover and details, above the actions. */
+		below?: Snippet;
 		actions?: Snippet;
 	} = $props();
 
@@ -104,6 +107,7 @@
 					{/if}
 				</div>
 			</div>
+			{@render below?.()}
 		{:else}
 			<Dialog.Title>{album}</Dialog.Title>
 			{@render details?.()}
