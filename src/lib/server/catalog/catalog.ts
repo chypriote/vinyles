@@ -62,6 +62,8 @@ export interface CatalogEnv {
 	COVERS: R2Bucket;
 	OWNER_PASSWORD: string;
 	JWT_SECRET: string;
+	/** Bearer value the scheduled handler sends to the cron route. */
+	CRON_SECRET: string;
 	/** Discogs personal access token. Without it, searches skip Discogs. */
 	DISCOGS_TOKEN?: string;
 	/** Last.fm API key. Without it, Suggestions skip Last.fm. */
@@ -757,6 +759,9 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 		},
 
 		verifyToken: async (token) => !!env.JWT_SECRET && (await tokenIsValid(token, env.JWT_SECRET)),
+
+		verifyCronSecret: async (given) =>
+			!!env.CRON_SECRET && !!given && (await passwordMatches(given, env.CRON_SECRET)),
 
 		async addRecord(token, input) {
 			await owner(token);

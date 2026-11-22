@@ -19,5 +19,5 @@
 			"bucket_name": "vinyles-covers"
 		}
 	]
-	// Secrets (not in this file): OWNER_PASSWORD and JWT_SECRET. See README.
+	// Secrets (not in this file): OWNER_PASSWORD, JWT_SECRET and CRON_SECRET. See README.
 }

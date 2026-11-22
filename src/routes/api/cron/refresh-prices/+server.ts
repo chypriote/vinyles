@@ -1,4 +1,3 @@
-import { env } from 'cloudflare:workers';
 import { json } from '@sveltejs/kit';
 import { catalogFromPlatform } from '#lib/server/catalog';
 import type { RequestHandler } from './$types';
@@ -7,13 +6,14 @@ import type { RequestHandler } from './$types';
 const BATCH = 5;
 const REFRESH_EVERY_DAYS = 14;
 
-/** Called by the schedule (see `scripts/add-cron-handler.mjs`) with the JWT secret as bearer. */
+/** Called by the schedule (see `scripts/add-cron-handler.mjs`) with `CRON_SECRET` as bearer. */
 export const POST: RequestHandler = async ({ request, platform }) => {
-	const secret = (env as unknown as { JWT_SECRET?: string }).JWT_SECRET;
-	if (!secret || request.headers.get('authorization') !== `Bearer ${secret}`) {
+	const catalog = catalogFromPlatform(platform);
+	const bearer = request.headers.get('authorization')?.replace(/^Bearer /, '') ?? '';
+	if (!(await catalog.verifyCronSecret(bearer))) {
 		return json({ error: 'Not allowed' }, { status: 401 });
 	}
-	const result = await catalogFromPlatform(platform).refreshOldest({
+	const result = await catalog.refreshOldest({
 		size: BATCH,
 		olderThanDays: REFRESH_EVERY_DAYS
 	});

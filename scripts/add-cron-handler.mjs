@@ -15,7 +15,7 @@ export default {
 	scheduled(_event, env, ctx) {
 		const request = new Request('https://vinyles.internal/api/cron/refresh-prices', {
 			method: 'POST',
-			headers: { authorization: \`Bearer \${env.JWT_SECRET}\` }
+			headers: { authorization: \`Bearer \${env.CRON_SECRET}\` }
 		});
 		ctx.waitUntil(worker.fetch(request, env, ctx));
 	}
