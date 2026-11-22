@@ -171,7 +171,11 @@
 
 <svelte:head><title>Vinyles | Wishlist</title></svelte:head>
 
-<StickyBar current="wishlist">
+<StickyBar
+	current="wishlist"
+	searchActive={search.trim() !== ''}
+	filtersActive={selectedArtists.length > 0 || desires.length > 0}
+>
 	{#snippet chips()}
 		<Chip tone="info" label="items" value={String(data.count)} />
 	{/snippet}
@@ -190,12 +194,14 @@
 			{/if}
 		{/if}
 	{/snippet}
-	{#snippet controls()}
+	{#snippet searchBox()}
 		<SearchField
 			bind:value={search}
 			label="Search artist or album"
 			placeholder="Search artist or album"
 		/>
+	{/snippet}
+	{#snippet controls()}
 		<ArtistFilter bind:value={selectedArtists} names={artistNames} />
 		<Select bind:value={sort} label="Sort by" options={sorts} />
 		<SortDirection bind:value={direction} />
