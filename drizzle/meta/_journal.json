@@ -64,6 +64,20 @@
       "when": 1795368762510,
       "tag": "0008_clear_fetched_prices",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1795369714176,
+      "tag": "0009_discarded_album",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1795369880821,
+      "tag": "0010_suggestion",
+      "breakpoints": true
     }
   ]
 }

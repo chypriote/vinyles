@@ -104,7 +104,7 @@
 	let coverOpen = $state(false);
 	let linksOpen = $state(false);
 
-	let dropping = $state(false);
+	let discarding = $state(false);
 	let refreshing = $state(false);
 	let refreshError = $state('');
 	let settingDesire = $state<1 | 2 | 3 | null>(null);
@@ -136,15 +136,15 @@
 		if (!outcome.ok) refreshError = outcome.error;
 	}
 
-	async function drop() {
+	async function discard() {
 		if (!selected) return;
-		dropping = true;
-		const outcome = await postAction('?/drop', { id: selected.id });
-		dropping = false;
+		discarding = true;
+		const outcome = await postAction('?/discard', { id: selected.id });
+		discarding = false;
 		if (outcome.ok) open = false;
 	}
 
-	// The row can disappear after a change (deleted, got, dropped): close its Popups.
+	// The row can disappear after a change (deleted, got, discarded): close its Popups.
 	$effect(() => {
 		if (selectedId !== null && !selected) {
 			open = false;
@@ -329,7 +329,7 @@
 					>
 						Got it
 					</Button>
-					<Button intent="danger" loading={dropping} onclick={drop}>Drop</Button>
+					<Button intent="danger" loading={discarding} onclick={discard}>Discard</Button>
 				</div>
 				<Button
 					onclick={() => {

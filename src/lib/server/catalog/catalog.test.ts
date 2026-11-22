@@ -11,6 +11,7 @@ async function clearData() {
 		env.DB.prepare('DELETE FROM price_quote'),
 		env.DB.prepare('DELETE FROM wishlist_item'),
 		env.DB.prepare('DELETE FROM record'),
+		env.DB.prepare('DELETE FROM discarded_album'),
 		env.DB.prepare('DELETE FROM album'),
 		env.DB.prepare('DELETE FROM artist'),
 		env.DB.prepare("DELETE FROM store WHERE name != 'Official Store'")
@@ -201,7 +202,9 @@ describe('Owner login', () => {
 			() => catalog.addWishlistItem(bad, { artist: 'A', album: 'B', desire: 2 }),
 			() => catalog.editWishlistItem(bad, { id: 1, artist: 'A', album: 'B' }),
 			() => catalog.gotIt(bad, { wishlistItemId: 1, acquisition: acq }),
-			() => catalog.drop(bad, 1),
+			() => catalog.discard(bad, 1),
+			() => catalog.undiscard(bad, 1),
+			() => catalog.listDiscarded(bad),
 			() => catalog.importRows(bad, { collection: [], wishlist: [] }),
 			() => catalog.lookupNext(bad, { size: 1 }),
 			() => catalog.importProgress(bad),
@@ -797,7 +800,7 @@ describe('Wishlist', () => {
 		expect((await catalog.listRecords()).records).toEqual([]);
 	});
 
-	it('Drop removes the Wishlist Item at once and creates no Record', async () => {
+	it('Discard removes the Wishlist Item at once and creates no Record', async () => {
 		const added = await catalog.addWishlistItem(token, {
 			artist: 'A',
 			album: 'B',
@@ -805,9 +808,69 @@ describe('Wishlist', () => {
 			priceQuotes: [{ storeId: await storeId(OFFICIAL), priceCents: 100 }]
 		});
 		if (added.status !== 'added') throw new Error();
-		await catalog.drop(token, added.item.id);
+		await catalog.discard(token, added.item.id);
 		expect((await catalog.listWishlist()).items).toEqual([]);
 		expect((await catalog.listRecords()).records).toEqual([]);
+	});
+
+	async function addItem(artist: string, album: string) {
+		const added = await catalog.addWishlistItem(token, { artist, album, desire: 2 });
+		if (added.status !== 'added') throw new Error();
+		return added.item;
+	}
+
+	it('Discard puts the Album on the Discarded list, by artist then title', async () => {
+		const b = await addItem('Beck', 'Odelay');
+		const a2 = await addItem('Air', 'Talkie Walkie');
+		const a1 = await addItem('Air', 'Moon Safari');
+		await catalog.discard(token, b.id);
+		await catalog.discard(token, a2.id);
+		await catalog.discard(token, a1.id);
+		expect(await catalog.listDiscarded(token)).toEqual([
+			{ albumId: a1.album.id, artist: 'Air', title: 'Moon Safari' },
+			{ albumId: a2.album.id, artist: 'Air', title: 'Talkie Walkie' },
+			{ albumId: b.album.id, artist: 'Beck', title: 'Odelay' }
+		]);
+	});
+
+	it('Discard of an unknown Wishlist Item changes nothing', async () => {
+		await catalog.discard(token, 999);
+		expect(await catalog.listDiscarded(token)).toEqual([]);
+	});
+
+	it('discarding an Album twice lists it once', async () => {
+		const first = await addItem('Air', 'Moon Safari');
+		await catalog.discard(token, first.id);
+		await catalog.addWishlistItem(token, { artist: 'Air', album: 'Moon Safari', desire: 1 });
+		const second = (await catalog.listWishlist()).items[0];
+		await catalog.discard(token, second.id);
+		expect(await catalog.listDiscarded(token)).toHaveLength(1);
+	});
+
+	it('Undiscard takes the Album off the list and puts nothing on the Wishlist', async () => {
+		const item = await addItem('Air', 'Moon Safari');
+		await catalog.discard(token, item.id);
+		await catalog.undiscard(token, item.album.id);
+		expect(await catalog.listDiscarded(token)).toEqual([]);
+		expect((await catalog.listWishlist()).items).toEqual([]);
+	});
+
+	it('adding a discarded Album to the Wishlist takes it off the Discarded list', async () => {
+		const item = await addItem('Air', 'Moon Safari');
+		await catalog.discard(token, item.id);
+		await addItem('Air', 'Moon Safari');
+		expect(await catalog.listDiscarded(token)).toEqual([]);
+		expect((await catalog.listWishlist()).items).toHaveLength(1);
+	});
+
+	it('Got it takes the Album off the Discarded list', async () => {
+		const item = await addItem('Air', 'Moon Safari');
+		// Not reachable through the Catalog: an Album is never on both lists. Force it.
+		await env.DB.prepare('INSERT INTO discarded_album (album_id) VALUES (?)')
+			.bind(item.album.id)
+			.run();
+		await catalog.gotIt(token, { wishlistItemId: item.id, acquisition: gift() });
+		expect(await catalog.listDiscarded(token)).toEqual([]);
 	});
 });
 

@@ -293,7 +293,7 @@ describe('Product Link', () => {
 	it('goes away with the Wishlist Item', async () => {
 		const item = await addItem();
 		await link(await storeId('Official Store'), item.id, 'https://x.test/a');
-		await catalog.drop(token, item.id);
+		await catalog.discard(token, item.id);
 		const rows = await env.DB.prepare('SELECT COUNT(*) AS n FROM product_link').first<{
 			n: number;
 		}>();

@@ -3,10 +3,12 @@ import { drizzle, type DrizzleD1Database } from 'drizzle-orm/d1';
 import {
 	albums,
 	artists,
+	discardedAlbums,
 	priceQuotes,
 	productLinks,
 	records,
 	stores,
+	suggestions,
 	wishlistItems
 } from '../db/schema';
 import { checkCoverImage } from './cover-check';
@@ -30,6 +32,8 @@ import {
 	searchDiscogs,
 	searchTypedCandidates
 } from './lookup';
+import { findSimilarArtists, findStudioAlbums, findTopAlbums } from './lookup';
+import { MAX_SUGGESTIONS, normalize, oldestUnknown, rankSeeds, type SeedRow } from './suggestions';
 import type {
 	AcquisitionInput,
 	AlbumSummary,
@@ -37,6 +41,7 @@ import type {
 	Catalog,
 	CoverCheckProgress,
 	Desire,
+	DiscardedAlbum,
 	ImportProgress,
 	ListFilters,
 	PriceQuote,
@@ -46,6 +51,8 @@ import type {
 	RecordView,
 	SortDirection,
 	Store,
+	SuggestionProgress,
+	SuggestionView,
 	WishlistSortKey,
 	WishlistItemView
 } from './types';
@@ -57,6 +64,8 @@ export interface CatalogEnv {
 	JWT_SECRET: string;
 	/** Discogs personal access token. Without it, searches skip Discogs. */
 	DISCOGS_TOKEN?: string;
+	/** Last.fm API key. Without it, Suggestions skip Last.fm. */
+	LASTFM_API_KEY?: string;
 }
 
 export interface CatalogOptions {
@@ -77,6 +86,8 @@ const PAGE_USER_AGENT = 'Mozilla/5.0 (X11; Linux x86_64; rv:130.0) Gecko/2010010
 const PAGE_TIMEOUT_MS = 8000;
 /** Marks an Album that was looked up on MusicBrainz and has no match. Null means not looked up yet. */
 const NO_MATCH = '';
+/** Similar Artists tried for one seed Artist, until one has an Album to propose. */
+const MAX_SIMILAR_TRIES = 3;
 
 /** True for a real calendar date written YYYY-MM-DD (2024-02-31 is not one). */
 function isRealDate(value: unknown): boolean {
@@ -534,6 +545,71 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 		return checkCoverImage(object.size, new Uint8Array(await object.arrayBuffer()));
 	}
 
+	/** A Suggestion shows while its Album is not owned, not on the Wishlist and not Discarded. */
+	const pendingSuggestion = sql`NOT EXISTS (
+		SELECT 1 FROM album a JOIN artist ar ON ar.id = a.artist_id
+		WHERE ar.name = suggestion.artist COLLATE NOCASE AND a.title = suggestion.title COLLATE NOCASE
+		AND (EXISTS (SELECT 1 FROM record r WHERE r.album_id = a.id)
+			OR EXISTS (SELECT 1 FROM wishlist_item w WHERE w.album_id = a.id)
+			OR EXISTS (SELECT 1 FROM discarded_album d WHERE d.album_id = a.id)))`;
+
+	const pendingSuggestions = () =>
+		db
+			.select()
+			.from(suggestions)
+			.where(pendingSuggestion)
+			.orderBy(suggestions.rank, suggestions.id);
+
+	/** Artists in the Collection or on the Wishlist, best seed first. */
+	async function rankedSeeds(): Promise<SeedRow[]> {
+		const owned = await db
+			.select({ artist: artists.name, records: count(records.id) })
+			.from(records)
+			.innerJoin(albums, eq(albums.id, records.albumId))
+			.innerJoin(artists, eq(artists.id, albums.artistId))
+			.groupBy(artists.id);
+		const wanted = await db
+			.select({ artist: artists.name, maxDesire: sql<number>`max(${wishlistItems.desire})` })
+			.from(wishlistItems)
+			.innerJoin(albums, eq(albums.id, wishlistItems.albumId))
+			.innerJoin(artists, eq(artists.id, albums.artistId))
+			.groupBy(artists.id);
+		const seeds = new Map<string, SeedRow>();
+		for (const { artist, records: n } of owned)
+			seeds.set(artist, { artist, records: n, maxDesire: 0 });
+		for (const { artist, maxDesire } of wanted) {
+			seeds.set(artist, { artist, records: seeds.get(artist)?.records ?? 0, maxDesire });
+		}
+		return rankSeeds([...seeds.values()]);
+	}
+
+	/** Titles of the Artist's Albums that are owned, wanted or Discarded, and of its Suggestions. */
+	async function knownTitles(artist: string): Promise<Set<string>> {
+		const albumRows = await db
+			.select({ title: albums.title })
+			.from(albums)
+			.innerJoin(artists, eq(artists.id, albums.artistId))
+			.where(
+				and(
+					eq(artists.name, artist),
+					sql`(EXISTS (SELECT 1 FROM record WHERE record.album_id = album.id)
+						OR EXISTS (SELECT 1 FROM wishlist_item WHERE wishlist_item.album_id = album.id)
+						OR EXISTS (SELECT 1 FROM discarded_album WHERE discarded_album.album_id = album.id))`
+				)
+			);
+		const suggested = await db
+			.select({ title: suggestions.title })
+			.from(suggestions)
+			.where(sql`${suggestions.artist} = ${artist} COLLATE NOCASE`);
+		return new Set([...albumRows, ...suggested].map((row) => normalize(row.title)));
+	}
+
+	async function findSuggestion(id: number) {
+		const [suggestion] = await db.select().from(suggestions).where(eq(suggestions.id, id));
+		if (!suggestion) throw new Error('Suggestion not found');
+		return suggestion;
+	}
+
 	return {
 		async listRecords(input = {}) {
 			const all = await loadRecords();
@@ -731,10 +807,13 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 				if (owned.length) return { status: 'already-owned', records: owned };
 			}
 			const albumId = await ensureAlbum(input.artist, input.album);
-			const [{ id }] = await db
-				.insert(wishlistItems)
-				.values({ albumId, variant: cleanOrNull(input.variant), desire: input.desire })
-				.returning({ id: wishlistItems.id });
+			const [[{ id }]] = (await db.batch([
+				db
+					.insert(wishlistItems)
+					.values({ albumId, variant: cleanOrNull(input.variant), desire: input.desire })
+					.returning({ id: wishlistItems.id }),
+				db.delete(discardedAlbums).where(eq(discardedAlbums.albumId, albumId))
+			])) as unknown as [{ id: number }[], unknown];
 			if (quotes.length) {
 				await db.insert(priceQuotes).values(quotes.map((q) => ({ wishlistItemId: id, ...q })));
 			}
@@ -770,14 +849,38 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 						...acquisition
 					})
 					.returning({ id: records.id }),
-				db.delete(wishlistItems).where(eq(wishlistItems.id, item.id))
-			])) as unknown as [{ id: number }[], unknown];
+				db.delete(wishlistItems).where(eq(wishlistItems.id, item.id)),
+				db.delete(discardedAlbums).where(eq(discardedAlbums.albumId, item.albumId))
+			])) as unknown as [{ id: number }[], unknown, unknown];
 			return oneRecord(id);
 		},
 
-		async drop(token, wishlistItemId) {
+		async discard(token, wishlistItemId) {
 			await owner(token);
-			await db.delete(wishlistItems).where(eq(wishlistItems.id, wishlistItemId));
+			const [item] = await db
+				.select({ albumId: wishlistItems.albumId })
+				.from(wishlistItems)
+				.where(eq(wishlistItems.id, wishlistItemId));
+			if (!item) return;
+			await db.batch([
+				db.insert(discardedAlbums).values({ albumId: item.albumId }).onConflictDoNothing(),
+				db.delete(wishlistItems).where(eq(wishlistItems.id, wishlistItemId))
+			]);
+		},
+
+		async undiscard(token, albumId) {
+			await owner(token);
+			await db.delete(discardedAlbums).where(eq(discardedAlbums.albumId, albumId));
+		},
+
+		async listDiscarded(token): Promise<DiscardedAlbum[]> {
+			await owner(token);
+			return db
+				.select({ albumId: albums.id, artist: artists.name, title: albums.title })
+				.from(discardedAlbums)
+				.innerJoin(albums, eq(albums.id, discardedAlbums.albumId))
+				.innerJoin(artists, eq(artists.id, albums.artistId))
+				.orderBy(artists.name, albums.title);
 		},
 
 		async setDesire(token, wishlistItemIds, desire) {
@@ -835,6 +938,129 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 			const item = (await loadWishlist(wishlistItemId))[0];
 			if (!item) throw new Error('Wishlist Item not found');
 			return item;
+		},
+
+		async findSuggestions(token, input): Promise<SuggestionProgress> {
+			await owner(token);
+			const size = Math.max(0, Math.floor(input.size));
+			const start = Math.max(0, Math.floor(input.cursor ?? 0));
+			const seeds = await rankedSeeds();
+			const current = await pendingSuggestions();
+			let pending = current.length;
+			const covered = new Set(current.map((s) => normalize(s.artist)));
+			const seedNames = new Set(seeds.map((seed) => normalize(seed.artist)));
+			const save = async (values: typeof suggestions.$inferInsert) => {
+				const saved = await db
+					.insert(suggestions)
+					.values(values)
+					.onConflictDoNothing()
+					.returning({ id: suggestions.id });
+				if (!saved.length) return;
+				pending++;
+				covered.add(normalize(values.artist));
+			};
+			const fromMusicBrainz = async (artist: string, rank: number) => {
+				const pick = oldestUnknown(
+					await findStudioAlbums(artist, intervalMs),
+					await knownTitles(artist)
+				);
+				if (!pick) return;
+				await save({
+					artist,
+					title: pick.title,
+					releaseYear: pick.releaseYear,
+					musicbrainzId: pick.musicbrainzId,
+					source: 'musicbrainz',
+					reason: `More by ${artist}`,
+					rank
+				});
+			};
+			const fromLastFm = async (key: string, artist: string, rank: number) => {
+				const similar = (await findSimilarArtists(key, artist))
+					.filter((name) => !seedNames.has(normalize(name)) && !covered.has(normalize(name)))
+					.slice(0, MAX_SIMILAR_TRIES);
+				for (const name of similar) {
+					const known = await knownTitles(name);
+					const title = (await findTopAlbums(key, name)).find((t) => !known.has(normalize(t)));
+					if (!title) continue;
+					const match = await findAlbum(name, title, intervalMs).catch(() => null);
+					await save({
+						artist: name,
+						title,
+						releaseYear: match?.releaseYear ?? null,
+						musicbrainzId: match?.musicbrainzId ?? null,
+						source: 'lastfm',
+						reason: `Similar to ${artist}`,
+						rank
+					});
+					return;
+				}
+			};
+			// A failing search must not stop the run: count it and go on to the next source or Artist.
+			let failures = 0;
+			const attempt = async (work: () => Promise<void>) => {
+				try {
+					await work();
+				} catch {
+					failures++;
+				}
+			};
+			let index = start;
+			for (; index < seeds.length && index < start + size && pending < MAX_SUGGESTIONS; index++) {
+				const { artist } = seeds[index];
+				if (!covered.has(normalize(artist))) {
+					await attempt(() => fromMusicBrainz(artist, index + 1));
+				}
+				const key = env.LASTFM_API_KEY;
+				if (key && pending < MAX_SUGGESTIONS) {
+					await attempt(() => fromLastFm(key, artist, index + 1));
+				}
+			}
+			return {
+				pending,
+				next: pending >= MAX_SUGGESTIONS || index >= seeds.length ? null : index,
+				failures
+			};
+		},
+
+		async listSuggestions(token): Promise<SuggestionView[]> {
+			await owner(token);
+			return (await pendingSuggestions()).map((s) => ({
+				id: s.id,
+				artist: s.artist,
+				title: s.title,
+				releaseYear: s.releaseYear,
+				musicbrainzId: s.musicbrainzId,
+				source: s.source,
+				reason: s.reason
+			}));
+		},
+
+		async addSuggestion(token, id) {
+			await owner(token);
+			const suggestion = await findSuggestion(id);
+			const stillPending = (await pendingSuggestions()).some((s) => s.id === id);
+			if (!stillPending) {
+				// The Album was owned, wanted or Discarded since: a second Wishlist Item would be a duplicate.
+				await db.delete(suggestions).where(eq(suggestions.id, id));
+				return;
+			}
+			const albumId = await ensureAlbum(suggestion.artist, suggestion.title);
+			await db.batch([
+				db.insert(wishlistItems).values({ albumId, desire: 2 }),
+				db.delete(discardedAlbums).where(eq(discardedAlbums.albumId, albumId)),
+				db.delete(suggestions).where(eq(suggestions.id, id))
+			]);
+		},
+
+		async discardSuggestion(token, id) {
+			await owner(token);
+			const suggestion = await findSuggestion(id);
+			const albumId = await ensureAlbum(suggestion.artist, suggestion.title);
+			await db.batch([
+				db.insert(discardedAlbums).values({ albumId }).onConflictDoNothing(),
+				db.delete(suggestions).where(eq(suggestions.id, id))
+			]);
 		},
 
 		async importRows(token, input) {

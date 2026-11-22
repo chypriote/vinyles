@@ -75,6 +75,32 @@ export const wishlistItems = sqliteTable(
 	(t) => [check('wishlist_item_desire_range', sql`${t.desire} BETWEEN 1 AND 3`)]
 );
 
+/** Albums the Owner discarded: Suggestions never propose them. */
+export const discardedAlbums = sqliteTable('discarded_album', {
+	albumId: integer('album_id')
+		.primaryKey()
+		.references(() => albums.id, { onDelete: 'cascade' })
+});
+
+/** An Album proposed for the Wishlist. It may not be an `album` row yet. */
+export const suggestions = sqliteTable(
+	'suggestion',
+	{
+		id: integer('id').primaryKey({ autoIncrement: true }),
+		artist: text('artist').notNull(),
+		title: text('title').notNull(),
+		releaseYear: integer('release_year'),
+		/** Release group on MusicBrainz: its Cover Art Archive image is the Cover. */
+		musicbrainzId: text('musicbrainz_id'),
+		source: text('source', { enum: ['musicbrainz', 'lastfm'] }).notNull(),
+		/** Shown to the Owner, e.g. "More by Air". */
+		reason: text('reason').notNull(),
+		/** Position of the seed Artist in the ranking, 1 first. */
+		rank: integer('rank').notNull()
+	},
+	(t) => [uniqueIndex('suggestion_artist_title_unique').on(t.artist, t.title)]
+);
+
 export const productLinks = sqliteTable(
 	'product_link',
 	{

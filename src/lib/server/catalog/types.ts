@@ -13,6 +13,12 @@ export interface Store {
 	name: string;
 }
 
+export interface DiscardedAlbum {
+	albumId: number;
+	artist: string;
+	title: string;
+}
+
 export interface Artist {
 	id: number;
 	name: string;
@@ -277,6 +283,30 @@ export interface SaveYearsInput {
 	years: { albumId: number; releaseYear: number }[];
 }
 
+// --- Suggestions (Owner) -----------------------------------------------------
+
+export type SuggestionSource = 'musicbrainz' | 'lastfm';
+
+export interface SuggestionView {
+	id: number;
+	artist: string;
+	title: string;
+	releaseYear: number | null;
+	/** Release group on MusicBrainz, for the Cover Art Archive image. Null when unknown. */
+	musicbrainzId: string | null;
+	source: SuggestionSource;
+	reason: string;
+}
+
+export interface SuggestionProgress {
+	/** Suggestions waiting for the Owner. */
+	pending: number;
+	/** Position of the next seed Artist to search, or null when the run is over (cap reached or all seeds read). */
+	next: number | null;
+	/** Searches of this batch that failed (service down, wrong Last.fm key). They are skipped, not retried. */
+	failures: number;
+}
+
 // --- Cover quality check (Owner) ---------------------------------------------
 
 export interface CoverCheckProgress {
@@ -331,6 +361,22 @@ export interface Catalog {
 	/** Albums whose current Cover failed its check. */
 	listFailingCovers(token: string): Promise<FailingCover[]>;
 
+	// Suggestions (Owner)
+	/**
+	 * Reads the next `size` seed Artists, from `cursor` (0 to start), and saves a Suggestion for each one that
+	 * has an Album the Owner does not know. Stops at the cap of 20 pending Suggestions.
+	 */
+	findSuggestions(
+		token: string,
+		input: { size: number; cursor?: number }
+	): Promise<SuggestionProgress>;
+	/** Pending Suggestions: not owned, not on the Wishlist, not Discarded. Seed rank first. */
+	listSuggestions(token: string): Promise<SuggestionView[]>;
+	/** Puts the Suggestion on the Wishlist with Desire 2. */
+	addSuggestion(token: string, id: number): Promise<void>;
+	/** Puts the Album of the Suggestion on the Discarded list. */
+	discardSuggestion(token: string, id: number): Promise<void>;
+
 	// Records (Owner)
 	addRecord(token: string, input: AddRecordInput): Promise<RecordView>;
 	editRecord(token: string, input: EditRecordInput): Promise<RecordView>;
@@ -343,7 +389,12 @@ export interface Catalog {
 	addWishlistItem(token: string, input: AddWishlistItemInput): Promise<AddWishlistItemResult>;
 	editWishlistItem(token: string, input: EditWishlistItemInput): Promise<WishlistItemView>;
 	gotIt(token: string, input: GotItInput): Promise<RecordView>;
-	drop(token: string, wishlistItemId: number): Promise<void>;
+	/** Removes the Wishlist Item and puts its Album on the Discarded list. An unknown item is ignored. */
+	discard(token: string, wishlistItemId: number): Promise<void>;
+	/** Takes the Album off the Discarded list. */
+	undiscard(token: string, albumId: number): Promise<void>;
+	/** The Discarded list, by artist then title. */
+	listDiscarded(token: string): Promise<DiscardedAlbum[]>;
 	setDesire(token: string, wishlistItemIds: number[], desire: Desire): Promise<void>;
 	/**
 	 * Reads the price of the Wishlist Item at every automatic Store and replaces its Price Quotes there.
