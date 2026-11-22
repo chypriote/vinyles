@@ -1768,6 +1768,22 @@ describe('Cover quality check', () => {
 		expect((await catalog.listFailingCovers(token)).map((f) => f.title)).toEqual(['New title']);
 	});
 
+	it('lists failing Covers of the Collection first, then the Wishlist', async () => {
+		await catalog.addWishlistItem(token, { artist: 'Air', album: 'A wished', desire: 2 });
+		await withCover('Z owned');
+		await catalog.addWishlistItem(token, {
+			artist: 'Air',
+			album: 'Z owned',
+			desire: 2,
+			addAnyway: true
+		});
+		await catalog.checkCovers(token, { size: 5 });
+		expect((await catalog.listFailingCovers(token)).map((f) => f.title)).toEqual([
+			'Z owned',
+			'A wished'
+		]);
+	});
+
 	it('checks a batch at a time', async () => {
 		await withCover('A', png(500, 500));
 		await withCover('B', png(500, 500));

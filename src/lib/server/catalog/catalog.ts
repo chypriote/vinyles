@@ -1360,7 +1360,11 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 				.from(albums)
 				.innerJoin(artists, eq(albums.artistId, artists.id))
 				.where(failing)
-				.orderBy(artists.name, albums.title);
+				.orderBy(
+					sql`exists (select 1 from ${records} where ${records.albumId} = ${albums.id}) desc`,
+					artists.name,
+					albums.title
+				);
 			return rows.map((row) => ({
 				...row,
 				inCollection: Boolean(row.inCollection),
