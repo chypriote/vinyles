@@ -494,7 +494,9 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 					.values({ wishlistItemId, storeId, ...price, foundAt })
 					.onConflictDoUpdate({
 						target: [priceQuotes.wishlistItemId, priceQuotes.storeId],
-						set: { ...price, foundAt }
+						set: { ...price, foundAt },
+						// A quote without a url is the Owner's own: a Refresh keeps it.
+						setWhere: isNotNull(priceQuotes.url)
 					})
 			);
 		}

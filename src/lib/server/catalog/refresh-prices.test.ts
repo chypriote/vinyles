@@ -144,6 +144,30 @@ describe('Refresh prices', () => {
 		expect(foundAt('Impericon', refreshed)).toBeGreaterThanOrEqual(foundAt('Impericon'));
 	});
 
+	it('keeps a Price Quote the Owner typed, even when the Store has a match', async () => {
+		const impericon = (await catalog.addStore(token, { name: 'Impericon' })).id;
+		const added = await catalog.addWishlistItem(token, {
+			artist: 'Air',
+			album: 'Talkie Walkie',
+			desire: 3,
+			priceQuotes: [{ storeId: impericon, priceCents: 1999 }]
+		});
+		if (added.status !== 'added') throw new Error('not added');
+		pages.set(
+			host('Impericon'),
+			suggestions({ title: 'Air - Talkie Walkie', price: '30', url: '/p/1' })
+		);
+		pages.set(
+			host('Nuclear Blast'),
+			suggestions({ title: 'Air - Talkie Walkie', price: '40', url: '/p/2' })
+		);
+		const refreshed = await catalog.refreshPrices(token, added.item.id);
+		expect(refreshed.priceQuotes.map((q) => [q.store.name, q.priceCents, q.url])).toEqual([
+			['Impericon', 1999, undefined],
+			['Nuclear Blast', 4000, 'https://www.nuclearblast.com/p/2']
+		]);
+	});
+
 	it('keeps the old quote when a Store fails or does not answer with suggestions', async () => {
 		const item = await addItem();
 		pages.set(
