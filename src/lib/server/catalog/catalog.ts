@@ -1086,6 +1086,33 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 			return (await loadWishlist(input.wishlistItemId))[0];
 		},
 
+		async setManualPrice(token, { wishlistItemId, storeId, priceCents }) {
+			await owner(token);
+			if (!(await loadWishlist(wishlistItemId))[0]) throw new Error('Wishlist Item not found');
+			if (!(await findStore(storeId))) throw new Error('Store not found');
+			if (priceCents === null) {
+				await db
+					.delete(priceQuotes)
+					.where(
+						and(
+							eq(priceQuotes.wishlistItemId, wishlistItemId),
+							eq(priceQuotes.storeId, storeId),
+							isNull(priceQuotes.url)
+						)
+					);
+			} else {
+				if (!isCents(priceCents)) throw new Error('A price must be in euro cents');
+				await db
+					.insert(priceQuotes)
+					.values({ wishlistItemId, storeId, priceCents })
+					.onConflictDoUpdate({
+						target: [priceQuotes.wishlistItemId, priceQuotes.storeId],
+						set: { priceCents, url: null, foundAt: null }
+					});
+			}
+			return (await loadWishlist(wishlistItemId))[0];
+		},
+
 		async removeProductLink(token, { wishlistItemId, storeId }) {
 			await owner(token);
 			await db

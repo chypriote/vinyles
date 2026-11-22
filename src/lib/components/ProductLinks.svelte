@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { addStore, postAction } from '#lib/forms';
-	import type { ProductLink } from '#lib/server/catalog/types';
+	import { centsToEuros, eurosToCents } from '#lib/money';
+	import type { PriceQuote, ProductLink } from '#lib/server/catalog/types';
 	import Button from './Button.svelte';
 	import Field from './Field.svelte';
 	import StoreSelect from './StoreSelect.svelte';
@@ -8,11 +9,13 @@
 	let {
 		itemId,
 		links,
+		quotes,
 		stores,
 		onDone
 	}: {
 		itemId: number;
 		links: ProductLink[];
+		quotes: PriceQuote[];
 		stores: { id: number; name: string; productLinksEnabled: boolean }[];
 		onDone: () => void;
 	} = $props();
@@ -24,6 +27,35 @@
 	let error = $state<string | null>(null);
 	let busy = $state(false);
 	let removing = $state<number | null>(null);
+	let saving = $state<number | null>(null);
+	// What the Owner typed, by Store. Missing: the field shows the Owner's saved price.
+	let typed = $state<Record<number, string>>({});
+
+	/** The price field of a Store: the Owner's own price, not one the Refresh read. */
+	function price(storeId: number): string {
+		if (storeId in typed) return typed[storeId];
+		const quote = quotes.find((q) => q.store.id === storeId && !q.url);
+		return quote ? centsToEuros(quote.priceCents) : '';
+	}
+
+	async function savePrice(storeId: number) {
+		const text = price(storeId).trim();
+		const priceCents = text === '' ? null : eurosToCents(text);
+		if (text !== '' && priceCents === null) {
+			error = 'Type the price in euros, like 12,50';
+			return;
+		}
+		saving = storeId;
+		error = null;
+		const outcome = await postAction('?/setManualPrice', {
+			wishlistItemId: itemId,
+			storeId,
+			priceCents
+		});
+		saving = null;
+		if (outcome.ok) delete typed[storeId];
+		else error = outcome.error;
+	}
 
 	async function save(event: SubmitEvent) {
 		event.preventDefault();
@@ -61,11 +93,22 @@
 	{#if links.length}
 		<ul class="flex flex-col gap-2">
 			{#each links as link (link.store.id)}
-				<li class="flex items-center justify-between gap-2 text-[15px]">
-					<span class="font-extrabold [overflow-wrap:anywhere]">{link.store.name}</span>
-					<Button loading={removing === link.store.id} onclick={() => remove(link.store.id)}>
-						Remove
-					</Button>
+				<li class="flex flex-col gap-2 text-[15px]">
+					<div class="flex items-center justify-between gap-2">
+						<span class="font-extrabold [overflow-wrap:anywhere]">{link.store.name}</span>
+						<Button loading={removing === link.store.id} onclick={() => remove(link.store.id)}>
+							Remove
+						</Button>
+					</div>
+					<div class="flex items-end gap-2">
+						<Field
+							label="Price (€), if it could not be read"
+							bind:value={() => price(link.store.id), (v) => (typed[link.store.id] = v)}
+						/>
+						<Button loading={saving === link.store.id} onclick={() => savePrice(link.store.id)}>
+							Save price
+						</Button>
+					</div>
 				</li>
 			{/each}
 		</ul>

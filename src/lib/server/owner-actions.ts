@@ -9,6 +9,7 @@ import type {
 	EditWishlistItemInput,
 	GotItInput,
 	SaveYearsInput,
+	SetManualPriceInput,
 	SetProductLinkInput
 } from '#lib/server/catalog';
 import { ownerToken } from '#lib/server/owner';
@@ -79,6 +80,10 @@ export const ownerActions = {
 	setProductLink: (event: RequestEvent) =>
 		run<SetProductLinkInput>(event, async (catalog, token, input) => {
 			await catalog.setProductLink(token, input);
+		}),
+	setManualPrice: (event: RequestEvent) =>
+		run<SetManualPriceInput>(event, async (catalog, token, input) => {
+			await catalog.setManualPrice(token, input);
 		}),
 	removeProductLink: (event: RequestEvent) =>
 		run<{ wishlistItemId: number; storeId: number }>(event, async (catalog, token, input) => {

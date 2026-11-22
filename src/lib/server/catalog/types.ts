@@ -214,6 +214,13 @@ export interface SetProductLinkInput {
 	url: string;
 }
 
+export interface SetManualPriceInput {
+	wishlistItemId: number;
+	storeId: number;
+	/** The price the Owner typed, in euro cents. Null removes the Owner's price at that Store. */
+	priceCents: number | null;
+}
+
 export interface GotItInput {
 	wishlistItemId: number;
 	/** Replaces the Wishlist Item's variant. Left out: the variant is kept. */
@@ -444,6 +451,8 @@ export interface Catalog {
 		token: string,
 		input: { wishlistItemId: number; storeId: number }
 	): Promise<WishlistItemView>;
+	/** Sets the price the Owner typed at a Store. A Refresh keeps it; a price the Refresh read is replaced. */
+	setManualPrice(token: string, input: SetManualPriceInput): Promise<WishlistItemView>;
 
 	// Import (Owner, once)
 	importRows(token: string, input: ImportRowsInput): Promise<ImportRowsResult>;
