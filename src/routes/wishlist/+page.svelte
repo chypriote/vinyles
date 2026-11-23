@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { SvelteURLSearchParams } from 'svelte/reactivity';
 	import type { PageProps } from './$types';
 	import type { WithCoverUrl } from '#lib/covers';
@@ -63,11 +64,14 @@
 		search.trim() !== '' || selectedArtists.length > 0 || desires.length > 0
 	);
 	// Items of the same desire show in random order, fixed until the page reloads.
+	// Shuffle only after mount: a different order at hydration mismatches the server HTML.
+	let mounted = $state(false);
+	onMount(() => (mounted = true));
 	const tieOrder: Record<number, number> = {};
 	const randomOrder = (id: number) => (tieOrder[id] ??= Math.random());
 	const items = $derived.by(() => {
 		const rows = filtered ?? data.items;
-		if (sort !== 'desire') return rows;
+		if (!mounted || sort !== 'desire') return rows;
 		const sign = direction === 'asc' ? 1 : -1;
 		return [...rows].sort(
 			(a, b) => sign * (a.desire - b.desire) || randomOrder(a.id) - randomOrder(b.id)
