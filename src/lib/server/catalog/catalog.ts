@@ -1255,8 +1255,9 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 			}));
 		},
 
-		async addSuggestion(token, id) {
+		async addSuggestion(token, id, desire) {
 			await owner(token);
+			if (!isDesire(desire)) throw new Error('Desire is 1 to 5');
 			const suggestion = await findSuggestion(id);
 			const stillPending = (await pendingSuggestions()).some((s) => s.id === id);
 			if (!stillPending) {
@@ -1266,7 +1267,7 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 			}
 			const albumId = await ensureAlbum(suggestion.artist, suggestion.title);
 			await db.batch([
-				db.insert(wishlistItems).values({ albumId, desire: 3 }),
+				db.insert(wishlistItems).values({ albumId, desire }),
 				db.delete(discardedAlbums).where(eq(discardedAlbums.albumId, albumId)),
 				db.delete(suggestions).where(eq(suggestions.id, id))
 			]);

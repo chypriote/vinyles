@@ -8,6 +8,7 @@
 		SuggestionView
 	} from '#lib/server/catalog/types';
 	import Button from '#lib/components/Button.svelte';
+	import DesireSelect from '#lib/components/DesireSelect.svelte';
 	import { Button as UiButton } from '#lib/components/ui/button/index.js';
 	import CoverPicker from '#lib/components/CoverPicker.svelte';
 	import Popup from '#lib/components/Popup.svelte';
@@ -52,6 +53,8 @@
 	/** Row keys (`add-3`, `discard-3`, `undiscard-7`) whose request runs. Rows run independently. */
 	let busy = $state<string[]>([]);
 	let brokenCovers = $state<number[]>([]);
+	/** The Suggestion whose wanted level is being chosen. */
+	let choosing = $state<number | null>(null);
 
 	/** One batch of seed Artists per request, until the run is over. */
 	async function findSuggestions() {
@@ -85,11 +88,14 @@
 		}
 	}
 
-	async function act(url: string, key: string) {
+	async function act(url: string, key: string, body?: object) {
 		busy = [...busy, key];
 		suggestionError = null;
 		try {
-			const response = await fetch(url, { method: 'POST' });
+			const response = await fetch(url, {
+				method: 'POST',
+				body: body && JSON.stringify(body)
+			});
 			if (!response.ok) {
 				suggestionError =
 					((await response.json()) as { error?: string }).error ?? 'The change failed';
@@ -257,13 +263,26 @@
 							</span>
 							<span class="text-sm">{suggestion.reason}</span>
 						</div>
-						<div class="flex gap-2">
+						<div class="flex flex-wrap gap-2">
+							{#if choosing === suggestion.id}
+								<DesireSelect
+									label="Wanted level"
+									placeholder="Wanted level…"
+									disabled={rowBusy(`add-${suggestion.id}`, `discard-${suggestion.id}`)}
+									onPick={(desire) => {
+										if (!desire) return;
+										choosing = null;
+										act(`/api/admin/suggestions/${suggestion.id}/add`, `add-${suggestion.id}`, {
+											desire
+										});
+									}}
+								/>
+							{/if}
 							<Button
 								intent="success"
 								loading={busy.includes(`add-${suggestion.id}`)}
 								disabled={rowBusy(`add-${suggestion.id}`, `discard-${suggestion.id}`)}
-								onclick={() =>
-									act(`/api/admin/suggestions/${suggestion.id}/add`, `add-${suggestion.id}`)}
+								onclick={() => (choosing = choosing === suggestion.id ? null : suggestion.id)}
 							>
 								Add
 							</Button>
