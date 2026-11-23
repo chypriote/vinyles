@@ -203,6 +203,17 @@ describe('Suggestions from MusicBrainz', () => {
 		expect(await titles()).toEqual(['Greatest Hits 3']);
 	});
 
+	it('keeps titles apart that differ by a number word', async () => {
+		await want('Sonata Arctica', 'Acoustic Adventures - Volume Two');
+		groups.push({
+			artist: 'Sonata Arctica',
+			title: 'Acoustic Adventures - Volume One',
+			year: 2022
+		});
+		await run();
+		expect(await titles()).toEqual(['Acoustic Adventures - Volume One']);
+	});
+
 	it('hides a saved Suggestion when a similar title is wanted later', async () => {
 		await own('Sonata Arctica', 'Silence');
 		groups.push({ artist: 'Sonata Arctica', title: 'Stone Grows Her Name', year: 2025 });

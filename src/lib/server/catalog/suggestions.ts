@@ -34,8 +34,13 @@ function distance(a: string, b: string): number {
 	return previous[b.length];
 }
 
-/** Digits and roman numerals of a title key: "Volume 2" and "Volume 3" are two Albums. */
-const numbers = (key: string) => key.match(/\b(\d+|[ivxlc]+)\b/g)?.join(' ') ?? '';
+/** Digits, roman numerals and number words of a title key: "Volume 2", "Volume 3" and "Volume Two" are three Albums. */
+const numbers = (key: string) =>
+	key
+		.match(
+			/\b(\d+|[ivxlc]+|one|two|three|four|five|six|seven|eight|nine|ten|first|second|third)\b/g
+		)
+		?.join(' ') ?? '';
 
 /** Share of a title that may differ for two title keys to be the same Album ("Stone" and "Stones"). */
 const TYPO_SHARE = 0.12;
