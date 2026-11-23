@@ -116,7 +116,7 @@ export type SortKey = 'artist' | 'album' | 'year';
 export type SortDirection = 'asc' | 'desc';
 export type RecordSortKey = SortKey | 'acquired';
 /** `desire`: most wanted first, then Artist and Album. */
-export type WishlistSortKey = SortKey | 'desire';
+export type WishlistSortKey = SortKey | 'desire' | 'added';
 
 export interface ListFilters {
 	/** One search over Artist and Album. */

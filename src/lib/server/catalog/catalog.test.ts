@@ -728,6 +728,14 @@ describe('Wishlist', () => {
 			]);
 		});
 
+		it('sorts by last added first, and oldest first with asc', async () => {
+			const ids = (await catalog.listWishlist()).items.map((i) => i.id);
+			const byId = async (direction?: 'asc' | 'desc') =>
+				(await catalog.listWishlist({ sort: 'added', direction })).items.map((i) => i.id);
+			expect(await byId()).toEqual([...ids].sort((x, y) => y - x));
+			expect(await byId('asc')).toEqual([...ids].sort((x, y) => x - y));
+		});
+
 		it('reverses the sort with the direction', async () => {
 			expect(await titles({ sort: 'desire', direction: 'asc' })).toEqual([
 				'Discovery',
