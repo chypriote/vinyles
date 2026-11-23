@@ -179,9 +179,9 @@
 			</div>
 			{#if error}<p class="text-sm font-medium" role="alert">! {error}</p>{/if}
 			{#if data.failing.length > 0}
-				<ul class="flex flex-col gap-4">
+				<ul class="flex flex-col divide-y divide-border">
 					{#each data.failing as album (album.albumId)}
-						<li class="flex flex-wrap items-center gap-3">
+						<li class="flex flex-wrap items-center gap-3 py-3">
 							{#if album.coverKey}
 								<img
 									src="/covers/{album.albumId}?v={album.coverVersion}"
@@ -237,9 +237,9 @@
 				</Button>
 			</div>
 			{#if suggestionError}<p class="text-sm font-medium" role="alert">! {suggestionError}</p>{/if}
-			<ul class="flex flex-col gap-4">
+			<ul class="flex flex-col divide-y divide-border">
 				{#each data.suggestions as suggestion (suggestion.id)}
-					<li class="grid grid-cols-[auto_1fr_auto] items-center gap-x-3 gap-y-1">
+					<li class="grid grid-cols-[auto_1fr_auto] items-center gap-x-3 gap-y-1 py-3">
 						{#if suggestion.musicbrainzId && !brokenCovers.includes(suggestion.id)}
 							<img
 								src={coverUrl(suggestion)}
@@ -313,9 +313,11 @@
 			<h2 class="text-sm font-bold">Discarded</h2>
 			<p class="text-sm font-medium">{data.discarded.length} discarded</p>
 			<!-- The page does not grow with the list: it scrolls inside the column. -->
-			<ul class="flex max-h-[calc(100dvh-10rem)] flex-col gap-3 overflow-y-auto pr-1">
+			<ul
+				class="flex max-h-[calc(100dvh-10rem)] flex-col divide-y divide-border overflow-y-auto pr-1"
+			>
 				{#each data.discarded as album (album.albumId)}
-					<li class="flex flex-wrap items-center gap-3">
+					<li class="flex flex-wrap items-center gap-3 py-3">
 						<div class="flex min-w-0 flex-1 flex-col">
 							<span class="text-sm font-bold">{album.title}</span>
 							<span class="text-sm text-muted-foreground">{album.artist}</span>
