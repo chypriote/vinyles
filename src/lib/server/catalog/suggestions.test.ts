@@ -203,6 +203,27 @@ describe('Suggestions from MusicBrainz', () => {
 		expect(await titles()).toEqual(['Greatest Hits 3']);
 	});
 
+	it('treats "&" as "and" and ignores articles', async () => {
+		await own('Rise Against', 'Sufferer and the Witness');
+		await own('Band', 'The Real Thing & A Dream');
+		groups.push(
+			{ artist: 'Rise Against', title: 'The Sufferer & The Witness', year: 2006 },
+			{ artist: 'Band', title: 'Real Thing and Dream', year: 2000 },
+			{ artist: 'Band', title: 'A', year: 2001 }
+		);
+		await run();
+		expect(await titles()).toEqual(['A']);
+	});
+
+	it('hides a saved Suggestion when the Album is wanted under "and" for "&"', async () => {
+		await own('Rise Against', 'Endgame');
+		groups.push({ artist: 'Rise Against', title: 'Sufferer & the Witness', year: 2006 });
+		await run();
+		expect(await titles()).toEqual(['Sufferer & the Witness']);
+		await want('Rise Against', 'The Sufferer and The Witness');
+		expect(await titles()).toEqual([]);
+	});
+
 	it('keeps titles apart that differ by a number word', async () => {
 		await want('Sonata Arctica', 'Acoustic Adventures - Volume Two');
 		groups.push({
