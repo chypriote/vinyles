@@ -4,7 +4,7 @@ import type { Desire, WishlistSortKey } from '#lib/server/catalog';
 import { withCoverUrls } from '#lib/covers';
 import type { RequestHandler } from './$types';
 
-const SORTS: WishlistSortKey[] = ['desire', 'artist', 'album', 'year'];
+const SORTS: WishlistSortKey[] = ['desire', 'artist', 'album', 'year', 'added'];
 
 /** Filtered and sorted Wishlist Items: the Catalog applies the rules, this only reads the query. */
 export const GET: RequestHandler = async ({ url, platform }) => {

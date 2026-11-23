@@ -36,7 +36,8 @@
 		{ value: 'desire', label: 'Sort: most wanted' },
 		{ value: 'artist', label: 'Sort: artist' },
 		{ value: 'album', label: 'Sort: album' },
-		{ value: 'year', label: 'Sort: release year' }
+		{ value: 'year', label: 'Sort: release year' },
+		{ value: 'added', label: 'Sort: last added' }
 	];
 
 	// The usual direction of each sort: the latest or most first for year, acquired and desire.
@@ -44,7 +45,8 @@
 		desire: 'desc',
 		artist: 'asc',
 		album: 'asc',
-		year: 'desc'
+		year: 'desc',
+		added: 'desc'
 	};
 
 	// Filters are page state, not in the URL. The Catalog applies them, through /api/wishlist.

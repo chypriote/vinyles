@@ -158,7 +158,8 @@ const DEFAULT_DIRECTION: Record<RecordSortKey | WishlistSortKey, SortDirection> 
 	album: 'asc',
 	year: 'desc',
 	acquired: 'desc',
-	desire: 'desc'
+	desire: 'desc',
+	added: 'desc'
 };
 
 /** Sorts by one key in the given direction. Ties and unknown values keep the same order in both directions. */
@@ -758,7 +759,9 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 				artist: (i: WishlistItemView) => i.album.artist,
 				album: (i: WishlistItemView) => i.album.title,
 				year: (i: WishlistItemView) => i.album.releaseYear,
-				desire: (i: WishlistItemView) => i.desire
+				desire: (i: WishlistItemView) => i.desire,
+				// Ids only grow, so the id is the order of adding.
+				added: (i: WishlistItemView) => i.id
 			};
 			const items = sortBy(
 				all.filter(
