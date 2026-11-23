@@ -586,7 +586,7 @@ describe('Suggestions from Last.fm', () => {
 		expect(await titles()).toEqual(['When It Falls']);
 	});
 
-	it('shares the cap of 20 with MusicBrainz, with no cap per source', async () => {
+	it('fills each source to half of the cap of 20', async () => {
 		for (let i = 0; i < 15; i++) {
 			const artist = `Artist ${String(i).padStart(2, '0')}`;
 			await own(artist, 'Old');
@@ -596,8 +596,28 @@ describe('Suggestions from Last.fm', () => {
 		}
 		expect(await run()).toEqual({ pending: 20, next: null, failures: 0 });
 		const sources = (await catalog.listSuggestions(token)).map((s) => s.source);
-		expect(sources).toHaveLength(20);
-		expect(sources.filter((s) => s === 'lastfm').length).toBeGreaterThan(0);
+		expect(sources.filter((s) => s === 'musicbrainz')).toHaveLength(10);
+		expect(sources.filter((s) => s === 'lastfm')).toHaveLength(10);
+	});
+
+	it('adds only what a source lacks: 8 from MusicBrainz means 2 more from it and 10 from Last.fm', async () => {
+		for (let i = 0; i < 15; i++) {
+			const artist = `Artist ${String(i).padStart(2, '0')}`;
+			await own(artist, 'Old');
+			groups.push({ artist, title: 'New', year: 2000 });
+		}
+		catalog = createCatalog(env, { lookupIntervalMs: 0 });
+		await catalog.findSuggestions(token, { size: 9 });
+		expect(await titles()).toHaveLength(8);
+		catalog = createCatalog({ ...env, LASTFM_API_KEY: 'test-key' }, { lookupIntervalMs: 0 });
+		for (let i = 0; i < 15; i++) {
+			similar[`Artist ${String(i).padStart(2, '0')}`] = [`Similar ${i}`];
+			topAlbums[`Similar ${i}`] = ['Top'];
+		}
+		await run();
+		const sources = (await catalog.listSuggestions(token)).map((s) => s.source);
+		expect(sources.filter((s) => s === 'musicbrainz')).toHaveLength(10);
+		expect(sources.filter((s) => s === 'lastfm')).toHaveLength(10);
 	});
 
 	it('counts a Last.fm failure, such as a wrong key, and keeps the MusicBrainz Suggestion', async () => {
