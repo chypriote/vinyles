@@ -4,12 +4,41 @@ export const MAX_SUGGESTIONS = 20;
 export const normalize = (value: string) => value.trim().toLowerCase();
 
 /**
- * Compares titles loosely: case, accents, apostrophes and other punctuation do not count,
- * "&" is "and", the words "the", "a" and "an" are dropped, and a final "Pt I" or "Part 1" is
- * dropped ("The Sufferer & The Witness" is "Sufferer and the Witness", "The Metal Opera" is
- * "The Metal Opera Pt I").
+ * Compares titles loosely: case, accents, apostrophes and other punctuation (dashes too) do not
+ * count, "&" is "and", the words "the", "a" and "an" are dropped, Roman numerals and number words
+ * become digits ("Act I" and "Act One" are "Act 1"), and a final "Pt 1" is dropped
+ * ("The Sufferer & The Witness" is "Sufferer and the Witness", "The Metal Opera" is "The Metal Opera Pt I").
  */
 const ARTICLES = new Set(['the', 'a', 'an']);
+const NUMBER_WORDS: Record<string, number> = {
+	one: 1,
+	two: 2,
+	three: 3,
+	four: 4,
+	five: 5,
+	six: 6,
+	seven: 7,
+	eight: 8,
+	nine: 9,
+	ten: 10,
+	first: 1,
+	second: 2,
+	third: 3
+};
+const ROMAN = /^(x{0,2})(ix|iv|v?i{0,3})$/;
+const ROMAN_VALUE: Record<string, number> = { i: 1, v: 5, x: 10 };
+
+/** The number a word stands for, as digits, or the word itself. */
+function numeral(word: string): string {
+	if (word in NUMBER_WORDS) return String(NUMBER_WORDS[word]);
+	if (!word || !ROMAN.test(word)) return word;
+	const values = [...word].map((letter) => ROMAN_VALUE[letter]);
+	const total = values.reduce(
+		(sum, value, i) => sum + (value < (values[i + 1] ?? 0) ? -value : value),
+		0
+	);
+	return String(total);
+}
 
 export function titleKey(title: string): string {
 	const words = title
@@ -22,7 +51,10 @@ export function titleKey(title: string): string {
 		.split(' ');
 	const kept = words.filter((word) => !ARTICLES.has(word));
 	// A title made of articles only ("A") keeps them.
-	return (kept.length ? kept : words).join(' ').replace(/ (pt|part) (i|1)$/, '');
+	return (kept.length ? kept : words)
+		.map(numeral)
+		.join(' ')
+		.replace(/ (pt|part) 1$/, '');
 }
 
 /** Edit distance between two short strings. */
@@ -42,21 +74,27 @@ function distance(a: string, b: string): number {
 	return previous[b.length];
 }
 
-/** Digits, roman numerals and number words of a title key: "Volume 2", "Volume 3" and "Volume Two" are three Albums. */
-const numbers = (key: string) =>
-	key
-		.match(
-			/\b(\d+|[ivxlc]+|one|two|three|four|five|six|seven|eight|nine|ten|first|second|third)\b/g
-		)
-		?.join(' ') ?? '';
+/** The digits of a title key: "Act 1" and "Act 2" are two Albums. */
+const numbers = (key: string) => key.match(/\b\d+\b/g)?.join(' ') ?? '';
 
 /** Share of a title that may differ for two title keys to be the same Album ("Stone" and "Stones"). */
 const TYPO_SHARE = 0.12;
 
-/** True when two title keys are the same Album: equal, or a small spelling difference with the same numbers. */
+/** Shortest title that can hide a longer one: "AM" must not hide every title with the word. */
+const MIN_CONTAINED_LENGTH = 4;
+
+/** True when `inner` is whole words of `outer`: "mystery of time" in "mystery of time rock epic". */
+const containsWords = (outer: string, inner: string) =>
+	inner.length >= MIN_CONTAINED_LENGTH && ` ${outer} `.includes(` ${inner} `);
+
+/**
+ * True when two title keys are the same Album: equal, or the same numbers and either one title inside
+ * the other ("The Mystery of Time" and "The Mystery of Time: A Rock Epic") or a small spelling difference.
+ */
 export function similarKeys(a: string, b: string): boolean {
 	if (a === b) return true;
 	if (numbers(a) !== numbers(b)) return false;
+	if (containsWords(a, b) || containsWords(b, a)) return true;
 	return distance(a, b) <= Math.floor(Math.max(a.length, b.length) * TYPO_SHARE);
 }
 
