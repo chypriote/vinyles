@@ -224,6 +224,54 @@ describe('Suggestions from MusicBrainz', () => {
 		expect(await titles()).toEqual([]);
 	});
 
+	it('treats an owned title inside a longer title as the same Album', async () => {
+		await own('Ayreon', 'Into the Electric Castle');
+		await own('Edguy', 'The Mystery of Time');
+		groups.push(
+			{ artist: 'Ayreon', title: 'Into the Electric Castle: A Space Opera', year: 1998 },
+			{ artist: 'Edguy', title: 'The Mystery of Time: A Rock Epic', year: 2013 },
+			{ artist: 'Edguy', title: 'Theater of Salvation', year: 1999 }
+		);
+		await run();
+		expect(await titles()).toEqual(['Theater of Salvation']);
+	});
+
+	it('treats a suggested title inside an owned longer title as the same Album', async () => {
+		await own('Ayreon', 'Into the Electric Castle: A Space Opera');
+		groups.push({ artist: 'Ayreon', title: 'Into the Electric Castle', year: 1998 });
+		await run();
+		expect(await titles()).toEqual([]);
+	});
+
+	it('does not let a very short title hide other titles', async () => {
+		await own('Arctic Monkeys', 'AM');
+		groups.push({ artist: 'Arctic Monkeys', title: 'AM Radio Sessions', year: 2014 });
+		await run();
+		expect(await titles()).toEqual(['AM Radio Sessions']);
+	});
+
+	it('treats Roman and Arabic numerals, number words and dash variants as equal', async () => {
+		await own('Imagine Dragons', 'Mercury - Act I');
+		await own('Band', 'Volume Two');
+		groups.push(
+			{ artist: 'Imagine Dragons', title: 'Mercury – Act 1', year: 2021 },
+			{ artist: 'Band', title: 'Volume 2', year: 2000 }
+		);
+		await run();
+		expect(await titles()).toEqual([]);
+	});
+
+	it('keeps parts apart when the containing title adds a number', async () => {
+		await own('Avantasia', 'The Metal Opera Pt I');
+		await own('Imagine Dragons', 'Mercury - Act I');
+		groups.push(
+			{ artist: 'Avantasia', title: 'The Metal Opera Pt. II', year: 2002 },
+			{ artist: 'Imagine Dragons', title: 'Mercury - Act 2', year: 2022 }
+		);
+		await run();
+		expect((await titles()).sort()).toEqual(['Mercury - Act 2', 'The Metal Opera Pt. II']);
+	});
+
 	it('keeps titles apart that differ by a number word', async () => {
 		await want('Sonata Arctica', 'Acoustic Adventures - Volume Two');
 		groups.push({
