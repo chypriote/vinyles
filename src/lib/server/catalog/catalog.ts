@@ -523,6 +523,42 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 		return existing.id;
 	}
 
+	/**
+	 * Gives the Wishlist Item's Album its new Artist and title when nothing else uses that Album,
+	 * so its Cover stays and the lookup runs again. Otherwise the same as `ensureAlbum`.
+	 */
+	async function renameOrEnsureAlbum(oldAlbumId: number, artistName: string, albumTitle: string) {
+		const artist = required(artistName, 'Artist');
+		const title = required(albumTitle, 'Album');
+		await db.insert(artists).values({ name: artist }).onConflictDoNothing();
+		const [{ id: artistId }] = await db
+			.select({ id: artists.id })
+			.from(artists)
+			.where(eq(artists.name, artist));
+		const [[target], [{ uses }]] = (await db.batch([
+			db
+				.select({ id: albums.id })
+				.from(albums)
+				.where(and(eq(albums.artistId, artistId), eq(albums.title, title))),
+			db
+				.select({
+					uses: sql<number>`(select count(*) from ${records} where ${records.albumId} = ${oldAlbumId}) + (select count(*) from ${wishlistItems} where ${wishlistItems.albumId} = ${oldAlbumId})`
+				})
+				.from(sql`(select 1)`)
+		])) as unknown as [{ id: number }[], { uses: number }[]];
+		if (target || uses !== 1) return ensureAlbum(artist, title);
+		await db
+			.update(albums)
+			.set({ artistId, title, releaseYear: null, musicbrainzId: null })
+			.where(eq(albums.id, oldAlbumId));
+		try {
+			await lookUpAlbum(oldAlbumId, artist, title);
+		} catch {
+			// Left as not looked up: the import batches can retry it.
+		}
+		return oldAlbumId;
+	}
+
 	async function checkQuotes(quotes: PriceQuoteInput[]) {
 		const seen = new Set<number>();
 		for (const q of quotes) {
@@ -938,7 +974,9 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 				);
 				if (owned.length) return { status: 'already-owned', records: owned };
 			}
-			const albumId = await ensureAlbum(input.artist, input.album);
+			const albumId = changed
+				? await renameOrEnsureAlbum(item.album.id, input.artist, input.album)
+				: item.album.id;
 			const update = db
 				.update(wishlistItems)
 				.set({
