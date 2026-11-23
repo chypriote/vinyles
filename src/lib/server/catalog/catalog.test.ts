@@ -848,6 +848,58 @@ describe('Wishlist', () => {
 			expect(edited.item.refreshedAt).toBeUndefined();
 		});
 
+		it('keeps the Album and its Cover when only the variant changes', async () => {
+			const item = await itemWithPrices();
+			await catalog.uploadCover(token, {
+				albumId: item.album.id,
+				body: new Uint8Array(10).fill(7).buffer,
+				contentType: 'image/png'
+			});
+			const before = (await catalog.listWishlist()).items[0].album;
+			const edited = await catalog.editWishlistItem(token, {
+				id: item.id,
+				artist: 'Air',
+				album: 'Moon Safari',
+				variant: 'Blue'
+			});
+			if (edited.status !== 'edited') throw new Error();
+			expect(edited.item.album).toEqual(before);
+			expect(await env.COVERS.get(before.coverKey!)).not.toBeNull();
+		});
+
+		it('keeps an Owner-chosen Cover when the title changes and nothing else uses the Album', async () => {
+			const item = await itemWithPrices();
+			await catalog.uploadCover(token, {
+				albumId: item.album.id,
+				body: new Uint8Array(10).fill(7).buffer,
+				contentType: 'image/png'
+			});
+			const edited = await catalog.editWishlistItem(token, {
+				id: item.id,
+				artist: 'Air',
+				album: 'Talkie Walkie'
+			});
+			if (edited.status !== 'edited') throw new Error();
+			expect(edited.item.album.id).toBe(item.album.id);
+			expect(edited.item.album.coverChosen).toBe(true);
+			expect(
+				(await (await env.COVERS.get(edited.item.album.coverKey!))?.arrayBuffer())?.byteLength
+			).toBe(10);
+		});
+
+		it('moves to another Album when a Record still uses the first one', async () => {
+			const item = await itemWithPrices();
+			await addRecord({ artist: 'Air', album: 'Moon Safari' });
+			const edited = await catalog.editWishlistItem(token, {
+				id: item.id,
+				artist: 'Air',
+				album: 'Talkie Walkie'
+			});
+			if (edited.status !== 'edited') throw new Error();
+			expect(edited.item.album.id).not.toBe(item.album.id);
+			expect((await catalog.listRecords()).records[0].album.title).toBe('Moon Safari');
+		});
+
 		it('keeps them when only the variant changes', async () => {
 			const item = await itemWithPrices();
 			const edited = await catalog.editWishlistItem(token, {
