@@ -186,6 +186,68 @@ describe('Suggestions from MusicBrainz', () => {
 		expect(await titles()).toEqual(['The Metal Opera Pt. II']);
 	});
 
+	it('treats a misspelt title as known (Stone Grows Her Name / Stones Grow Her Name)', async () => {
+		await want('Sonata Arctica', 'Stones Grow Her Name');
+		groups.push(
+			{ artist: 'Sonata Arctica', title: 'Stone Grows Her Name', year: 2025 },
+			{ artist: 'Sonata Arctica', title: 'Reckoning Night', year: 2004 }
+		);
+		await run();
+		expect(await titles()).toEqual(['Reckoning Night']);
+	});
+
+	it('keeps titles apart that differ by a number', async () => {
+		await own('Band', 'Greatest Hits 2');
+		groups.push({ artist: 'Band', title: 'Greatest Hits 3', year: 2001 });
+		await run();
+		expect(await titles()).toEqual(['Greatest Hits 3']);
+	});
+
+	it('hides a saved Suggestion when a similar title is wanted later', async () => {
+		await own('Sonata Arctica', 'Silence');
+		groups.push({ artist: 'Sonata Arctica', title: 'Stone Grows Her Name', year: 2025 });
+		await run();
+		expect(await titles()).toEqual(['Stone Grows Her Name']);
+		await want('Sonata Arctica', 'Stones Grow Her Name');
+		expect(await titles()).toEqual([]);
+	});
+
+	it('shows one of two similar saved Suggestions of an Artist', async () => {
+		await own('Sonata Arctica', 'Silence');
+		await env.DB.batch([
+			env.DB.prepare(
+				"INSERT INTO suggestion (artist, title, source, reason, rank) VALUES ('Sonata Arctica', 'Stones Grow Her Name', 'musicbrainz', 'More by Sonata Arctica', 1)"
+			),
+			env.DB.prepare(
+				"INSERT INTO suggestion (artist, title, source, reason, rank) VALUES ('Sonata Arctica', 'Stone Grows Her Name', 'lastfm', 'Similar to X', 2)"
+			)
+		]);
+		expect(await titles()).toEqual(['Stones Grow Her Name']);
+	});
+
+	it('does not propose a title similar to a Suggestion already saved for the Artist', async () => {
+		await own('Sonata Arctica', 'Silence');
+		await env.DB.prepare(
+			"INSERT INTO suggestion (artist, title, source, reason, rank) VALUES ('Sonata Arctica', 'Stones Grow Her Name', 'lastfm', 'x', 9)"
+		).run();
+		groups.push({ artist: 'Sonata Arctica', title: 'Stone Grows Her Name', year: 2025 });
+		await run();
+		expect(await titles()).toEqual(['Stones Grow Her Name']);
+	});
+
+	it('reads D1 a fixed number of times per search, whatever the number of Artists', async () => {
+		for (let i = 0; i < 6; i++) {
+			await own(`Artist ${i}`, 'Old');
+			groups.push({ artist: `Artist ${i}`, title: 'New', year: 2000 });
+		}
+		const prepare = vi.spyOn(env.DB, 'prepare');
+		await run();
+		const selects = prepare.mock.calls.filter(([sql]) => /^select/i.test(sql)).length;
+		// rankedSeeds (2) + Suggestions and taken Albums (2) + a count check per insert is not a select.
+		expect(selects).toBeGreaterThan(0);
+		expect(selects).toBeLessThanOrEqual(6);
+	});
+
 	it('hides a saved Suggestion when its Album is later owned under a similar title', async () => {
 		await own('Avantasia', 'The Metal Opera Pt II');
 		groups.push({ artist: 'Avantasia', title: 'The Metal Opera', year: 2001 });
