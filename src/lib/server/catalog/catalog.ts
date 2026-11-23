@@ -1165,6 +1165,16 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 			const { saved, taken } = await suggestionState();
 			const current = pendingOf(saved, taken);
 			let pending = current.length;
+			// Each source fills its own share: with Last.fm, half of the cap each; without it, MusicBrainz alone.
+			const key = env.LASTFM_API_KEY;
+			const target = {
+				musicbrainz: key ? MAX_SUGGESTIONS / 2 : MAX_SUGGESTIONS,
+				lastfm: key ? MAX_SUGGESTIONS / 2 : 0
+			};
+			const count = { musicbrainz: 0, lastfm: 0 };
+			for (const s of current) count[s.source]++;
+			const wants = (source: 'musicbrainz' | 'lastfm') =>
+				pending < MAX_SUGGESTIONS && count[source] < target[source];
 			// Titles to avoid per Artist: Albums the Owner has or discarded, and every saved Suggestion.
 			const avoid = groupTitles(saved);
 			for (const [artist, keys] of taken)
@@ -1179,6 +1189,7 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 					.returning({ id: suggestions.id });
 				if (!saved.length) return;
 				pending++;
+				count[values.source]++;
 				covered.add(normalize(values.artist));
 				addTitle(avoid, values.artist, values.title);
 			};
@@ -1225,19 +1236,22 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 				}
 			};
 			let index = start;
-			for (; index < seeds.length && index < start + size && pending < MAX_SUGGESTIONS; index++) {
+			for (
+				;
+				index < seeds.length && index < start + size && (wants('musicbrainz') || wants('lastfm'));
+				index++
+			) {
 				const { artist } = seeds[index];
-				if (!covered.has(normalize(artist))) {
+				if (wants('musicbrainz') && !covered.has(normalize(artist))) {
 					await attempt(() => fromMusicBrainz(artist, index + 1));
 				}
-				const key = env.LASTFM_API_KEY;
-				if (key && pending < MAX_SUGGESTIONS) {
+				if (key && wants('lastfm')) {
 					await attempt(() => fromLastFm(key, artist, index + 1));
 				}
 			}
 			return {
 				pending,
-				next: pending >= MAX_SUGGESTIONS || index >= seeds.length ? null : index,
+				next: index >= seeds.length || !(wants('musicbrainz') || wants('lastfm')) ? null : index,
 				failures
 			};
 		},
