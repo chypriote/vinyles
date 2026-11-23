@@ -12,7 +12,7 @@
 	<span
 		role="group"
 		aria-label="Desire"
-		class="-ms-3 -my-2 inline-flex items-center text-icon-accent"
+		class="-ms-1.5 -my-2 inline-flex items-center text-icon-accent"
 	>
 		{#each levels as level (level)}
 			<button
@@ -20,7 +20,7 @@
 				{disabled}
 				aria-label="Set desire to {level}"
 				aria-pressed={level === value}
-				class="flex size-11 cursor-pointer items-center justify-center rounded-full outline-ring focus-visible:outline-3 focus-visible:outline-solid disabled:cursor-not-allowed disabled:opacity-50"
+				class="flex h-11 w-5 cursor-pointer items-center justify-center rounded-full outline-ring focus-visible:outline-3 focus-visible:outline-solid disabled:cursor-not-allowed disabled:opacity-50"
 				onclick={() => level !== value && onPick(level)}
 			>
 				<span class="size-2 rounded-full bg-current {level <= value ? '' : 'opacity-25'}"></span>
