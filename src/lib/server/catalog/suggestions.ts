@@ -5,16 +5,24 @@ export const normalize = (value: string) => value.trim().toLowerCase();
 
 /**
  * Compares titles loosely: case, accents, apostrophes and other punctuation do not count,
- * and a final "Pt I" or "Part 1" is dropped ("The Metal Opera" is "The Metal Opera Pt I").
+ * "&" is "and", the words "the", "a" and "an" are dropped, and a final "Pt I" or "Part 1" is
+ * dropped ("The Sufferer & The Witness" is "Sufferer and the Witness", "The Metal Opera" is
+ * "The Metal Opera Pt I").
  */
+const ARTICLES = new Set(['the', 'a', 'an']);
+
 export function titleKey(title: string): string {
-	return title
+	const words = title
 		.normalize('NFKD')
 		.replace(/\p{M}/gu, '')
 		.toLowerCase()
+		.replaceAll('&', ' and ')
 		.replace(/[^\p{L}\p{N}]+/gu, ' ')
 		.trim()
-		.replace(/ (pt|part) (i|1)$/, '');
+		.split(' ');
+	const kept = words.filter((word) => !ARTICLES.has(word));
+	// A title made of articles only ("A") keeps them.
+	return (kept.length ? kept : words).join(' ').replace(/ (pt|part) (i|1)$/, '');
 }
 
 /** Edit distance between two short strings. */
