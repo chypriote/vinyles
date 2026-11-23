@@ -25,8 +25,6 @@
 				aria-pressed={level === value}
 				class="flex h-11 w-5 cursor-pointer items-center justify-center rounded-full outline-ring focus-visible:outline-3 focus-visible:outline-solid disabled:cursor-not-allowed disabled:opacity-50"
 				onmouseenter={() => (hover = level)}
-				onfocus={() => (hover = level)}
-				onblur={() => (hover = null)}
 				onclick={() => level !== value && onPick(level)}
 			>
 				<span class="size-2 rounded-full bg-current {level <= shown ? '' : 'opacity-25'}"></span>
