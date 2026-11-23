@@ -62,7 +62,17 @@
 	const isFiltering = $derived(
 		search.trim() !== '' || selectedArtists.length > 0 || desires.length > 0
 	);
-	const items = $derived(filtered ?? data.items);
+	// Items of the same desire show in random order, fixed until the page reloads.
+	const tieOrder: Record<number, number> = {};
+	const randomOrder = (id: number) => (tieOrder[id] ??= Math.random());
+	const items = $derived.by(() => {
+		const rows = filtered ?? data.items;
+		if (sort !== 'desire') return rows;
+		const sign = direction === 'asc' ? 1 : -1;
+		return [...rows].sort(
+			(a, b) => sign * (a.desire - b.desire) || randomOrder(a.id) - randomOrder(b.id)
+		);
+	});
 
 	$effect(() => {
 		void data.items; // refetch the filtered list after a change
