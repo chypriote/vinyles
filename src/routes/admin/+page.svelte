@@ -9,6 +9,7 @@
 	} from '#lib/server/catalog/types';
 	import Button from '#lib/components/Button.svelte';
 	import CheckIcon from '@lucide/svelte/icons/check';
+	import Undo2Icon from '@lucide/svelte/icons/undo-2';
 	import XIcon from '@lucide/svelte/icons/x';
 	import DesireSelect from '#lib/components/DesireSelect.svelte';
 	import { Button as UiButton } from '#lib/components/ui/button/index.js';
@@ -322,7 +323,9 @@
 							<span class="text-sm font-bold">{album.title}</span>
 							<span class="text-sm text-muted-foreground">{album.artist}</span>
 						</div>
-						<Button
+						<UiButton
+							variant="neutral"
+							size="icon"
 							loading={busy.includes(`undiscard-${album.albumId}`)}
 							disabled={busy.includes(`undiscard-${album.albumId}`)}
 							onclick={() =>
@@ -331,8 +334,9 @@
 									`undiscard-${album.albumId}`
 								)}
 						>
-							Undiscard
-						</Button>
+							<Undo2Icon aria-hidden="true" class="size-5" />
+							<span class="sr-only">Undiscard</span>
+						</UiButton>
 					</li>
 				{/each}
 			</ul>
