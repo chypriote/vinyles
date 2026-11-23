@@ -409,8 +409,8 @@ export interface Catalog {
 	): Promise<SuggestionProgress>;
 	/** Pending Suggestions: not owned, not on the Wishlist, not Discarded. Seed rank first. */
 	listSuggestions(token: string): Promise<SuggestionView[]>;
-	/** Puts the Suggestion on the Wishlist with Desire 3. */
-	addSuggestion(token: string, id: number): Promise<void>;
+	/** Puts the Suggestion on the Wishlist with the given Desire (1 to 5). */
+	addSuggestion(token: string, id: number, desire: Desire): Promise<void>;
 	/** Puts the Album of the Suggestion on the Discarded list. */
 	discardSuggestion(token: string, id: number): Promise<void>;
 

@@ -374,19 +374,32 @@ describe('Add and Discard a Suggestion', () => {
 		await run();
 	});
 
-	it('Add creates a Wishlist Item with Desire 3 and removes the Suggestion', async () => {
+	it('Add creates a Wishlist Item with the chosen Desire and removes the Suggestion', async () => {
 		const [suggestion] = await catalog.listSuggestions(token);
-		await catalog.addSuggestion(token, suggestion.id);
+		await catalog.addSuggestion(token, suggestion.id, 4);
 		const { items } = await catalog.listWishlist();
 		expect(items).toHaveLength(1);
 		expect(items[0]).toMatchObject({
-			desire: 3,
+			desire: 4,
 			variant: null,
 			priceQuotes: [],
 			album: { artist: 'Air', title: 'Talkie Walkie', releaseYear: 2004 }
 		});
 		expect(await catalog.listSuggestions(token)).toEqual([]);
 		expect(await run()).toEqual({ pending: 0, next: null, failures: 0 });
+	});
+
+	it('Add takes any Desire from 1 to 5 and refuses another one, keeping the Suggestion', async () => {
+		const [suggestion] = await catalog.listSuggestions(token);
+		for (const bad of [0, 6, 2.5, undefined]) {
+			await expect(
+				catalog.addSuggestion(token, suggestion.id, bad as unknown as 1)
+			).rejects.toThrow('Desire is 1 to 5');
+		}
+		expect(await catalog.listSuggestions(token)).toHaveLength(1);
+		expect((await catalog.listWishlist()).items).toEqual([]);
+		await catalog.addSuggestion(token, suggestion.id, 1);
+		expect((await catalog.listWishlist()).items).toMatchObject([{ desire: 1 }]);
 	});
 
 	it('Discard puts the Album on the Discarded list and removes the Suggestion', async () => {
@@ -412,15 +425,15 @@ describe('Add and Discard a Suggestion', () => {
 	it('Add of a Suggestion whose Album was wanted meanwhile makes no duplicate', async () => {
 		const [suggestion] = await catalog.listSuggestions(token);
 		await want('Air', 'Talkie Walkie', 1);
-		await catalog.addSuggestion(token, suggestion.id);
+		await catalog.addSuggestion(token, suggestion.id, 3);
 		expect((await catalog.listWishlist()).items).toHaveLength(1);
-		await expect(catalog.addSuggestion(token, suggestion.id)).rejects.toThrow(
+		await expect(catalog.addSuggestion(token, suggestion.id, 3)).rejects.toThrow(
 			'Suggestion not found'
 		);
 	});
 
 	it('refuses an unknown Suggestion', async () => {
-		await expect(catalog.addSuggestion(token, 999)).rejects.toThrow('Suggestion not found');
+		await expect(catalog.addSuggestion(token, 999, 3)).rejects.toThrow('Suggestion not found');
 		await expect(catalog.discardSuggestion(token, 999)).rejects.toThrow('Suggestion not found');
 	});
 });
@@ -431,7 +444,7 @@ describe('Suggestions need the Owner', () => {
 		const calls = [
 			() => catalog.findSuggestions(bad, { size: 1 }),
 			() => catalog.listSuggestions(bad),
-			() => catalog.addSuggestion(bad, 1),
+			() => catalog.addSuggestion(bad, 1, 3),
 			() => catalog.discardSuggestion(bad, 1)
 		];
 		for (const call of calls) {
@@ -535,14 +548,14 @@ describe('Suggestions from Last.fm', () => {
 		expect(lastFmCalls).toEqual([]);
 	});
 
-	it('Add of a Last.fm Suggestion puts it on the Wishlist with Desire 3', async () => {
+	it('Add of a Last.fm Suggestion puts it on the Wishlist with the chosen Desire', async () => {
 		similar.Air = ['Zero 7'];
 		topAlbums['Zero 7'] = ['Simple Things'];
 		await run();
 		const [suggestion] = await catalog.listSuggestions(token);
-		await catalog.addSuggestion(token, suggestion.id);
+		await catalog.addSuggestion(token, suggestion.id, 5);
 		expect((await catalog.listWishlist()).items).toMatchObject([
-			{ desire: 3, album: { artist: 'Zero 7', title: 'Simple Things' } }
+			{ desire: 5, album: { artist: 'Zero 7', title: 'Simple Things' } }
 		]);
 	});
 });
