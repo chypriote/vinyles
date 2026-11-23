@@ -50,13 +50,16 @@ import {
 } from './lookup';
 import { findSimilarArtists, findStudioAlbums, findTopAlbums } from './lookup';
 import {
-	albumKey,
+	addTitle,
+	groupTitles,
+	hasSimilar,
 	MAX_SUGGESTIONS,
 	normalize,
 	oldestUnknown,
+	pendingOf,
 	rankSeeds,
-	titleKey,
-	type SeedRow
+	type SeedRow,
+	type TitlesByArtist
 } from './suggestions';
 import type {
 	AcquisitionInput,
@@ -622,8 +625,8 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 		return checkCoverImage(object.size, new Uint8Array(await object.arrayBuffer()));
 	}
 
-	/** Albums that are owned, wanted or Discarded, as `albumKey`s. */
-	async function takenAlbumKeys(): Promise<Set<string>> {
+	/** Albums that are owned, wanted or Discarded, with their title keys by Artist. */
+	async function takenTitles(): Promise<TitlesByArtist> {
 		const rows = await db
 			.select({ artist: artists.name, title: albums.title })
 			.from(albums)
@@ -633,7 +636,7 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 					OR EXISTS (SELECT 1 FROM wishlist_item WHERE wishlist_item.album_id = album.id)
 					OR EXISTS (SELECT 1 FROM discarded_album WHERE discarded_album.album_id = album.id))`
 			);
-		return new Set(rows.map((row) => albumKey(row.artist, row.title)));
+		return groupTitles(rows);
 	}
 
 	/** Deezer and, with a token, Discogs hits for a text. A failing source must not hide the others. */
@@ -645,13 +648,19 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 		return [...deezer, ...discogs];
 	}
 
-	/** A Suggestion shows while its Album is not owned, not on the Wishlist and not Discarded. */
-	async function pendingSuggestions() {
-		const [all, taken] = await Promise.all([
+	/** All saved Suggestions, best seed first, and the Albums that hide them: two reads in all. */
+	async function suggestionState() {
+		const [saved, taken] = await Promise.all([
 			db.select().from(suggestions).orderBy(suggestions.rank, suggestions.id),
-			takenAlbumKeys()
+			takenTitles()
 		]);
-		return all.filter((s) => !taken.has(albumKey(s.artist, s.title)));
+		return { saved, taken };
+	}
+
+	/** A Suggestion shows while its Album is not owned, not on the Wishlist, not Discarded, not a twin of another. */
+	async function pendingSuggestions() {
+		const { saved, taken } = await suggestionState();
+		return pendingOf(saved, taken);
 	}
 
 	/** Artists in the Collection or on the Wishlist, best seed first. */
@@ -675,27 +684,6 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 			seeds.set(artist, { artist, records: seeds.get(artist)?.records ?? 0, maxDesire });
 		}
 		return rankSeeds([...seeds.values()]);
-	}
-
-	/** Titles of the Artist's Albums that are owned, wanted or Discarded, and of its Suggestions. */
-	async function knownTitles(artist: string): Promise<Set<string>> {
-		const albumRows = await db
-			.select({ title: albums.title })
-			.from(albums)
-			.innerJoin(artists, eq(artists.id, albums.artistId))
-			.where(
-				and(
-					eq(artists.name, artist),
-					sql`(EXISTS (SELECT 1 FROM record WHERE record.album_id = album.id)
-						OR EXISTS (SELECT 1 FROM wishlist_item WHERE wishlist_item.album_id = album.id)
-						OR EXISTS (SELECT 1 FROM discarded_album WHERE discarded_album.album_id = album.id))`
-				)
-			);
-		const suggested = await db
-			.select({ title: suggestions.title })
-			.from(suggestions)
-			.where(sql`${suggestions.artist} = ${artist} COLLATE NOCASE`);
-		return new Set([...albumRows, ...suggested].map((row) => titleKey(row.title)));
 	}
 
 	async function findSuggestion(id: number) {
@@ -1133,8 +1121,13 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 			const size = Math.max(0, Math.floor(input.size));
 			const start = Math.max(0, Math.floor(input.cursor ?? 0));
 			const seeds = await rankedSeeds();
-			const current = await pendingSuggestions();
+			const { saved, taken } = await suggestionState();
+			const current = pendingOf(saved, taken);
 			let pending = current.length;
+			// Titles to avoid per Artist: Albums the Owner has or discarded, and every saved Suggestion.
+			const avoid = groupTitles(saved);
+			for (const [artist, keys] of taken)
+				avoid.set(artist, [...(avoid.get(artist) ?? []), ...keys]);
 			const covered = new Set(current.map((s) => normalize(s.artist)));
 			const seedNames = new Set(seeds.map((seed) => normalize(seed.artist)));
 			const save = async (values: typeof suggestions.$inferInsert) => {
@@ -1146,12 +1139,10 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 				if (!saved.length) return;
 				pending++;
 				covered.add(normalize(values.artist));
+				addTitle(avoid, values.artist, values.title);
 			};
 			const fromMusicBrainz = async (artist: string, rank: number) => {
-				const pick = oldestUnknown(
-					await findStudioAlbums(artist, intervalMs),
-					await knownTitles(artist)
-				);
+				const pick = oldestUnknown(await findStudioAlbums(artist, intervalMs), avoid, artist);
 				if (!pick) return;
 				await save({
 					artist,
@@ -1168,8 +1159,7 @@ export function buildCatalog(env: CatalogEnv, options: CatalogOptions = {}): Cat
 					.filter((name) => !seedNames.has(normalize(name)) && !covered.has(normalize(name)))
 					.slice(0, MAX_SIMILAR_TRIES);
 				for (const name of similar) {
-					const known = await knownTitles(name);
-					const title = (await findTopAlbums(key, name)).find((t) => !known.has(titleKey(t)));
+					const title = (await findTopAlbums(key, name)).find((t) => !hasSimilar(avoid, name, t));
 					if (!title) continue;
 					const match = await findAlbum(name, title, intervalMs).catch(() => null);
 					await save({
