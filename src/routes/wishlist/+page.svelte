@@ -298,22 +298,17 @@
 				{#if selected}
 					<dt class="text-muted-foreground">Desire</dt>
 					<dd class="flex items-center gap-1.5">
-						<DesireDots value={selected.desire} />
+						<DesireDots
+							value={selected.desire}
+							disabled={settingDesire}
+							onPick={data.isOwner
+								? (level) => selected && setDesire([selected.id], level)
+								: undefined}
+						/>
 						<span class="font-medium whitespace-nowrap text-muted-foreground">
 							{selected.desire}/5
 						</span>
 					</dd>
-					{#if data.isOwner}
-						<dt class="text-muted-foreground">Set to</dt>
-						<dd>
-							<DesireSelect
-								label="Set desire"
-								value={selected.desire}
-								disabled={settingDesire}
-								onPick={(level) => level && selected && setDesire([selected.id], level)}
-							/>
-						</dd>
-					{/if}
 				{/if}
 			</dl>
 		{/snippet}
