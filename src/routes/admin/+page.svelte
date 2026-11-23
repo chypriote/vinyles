@@ -8,6 +8,8 @@
 		SuggestionView
 	} from '#lib/server/catalog/types';
 	import Button from '#lib/components/Button.svelte';
+	import CheckIcon from '@lucide/svelte/icons/check';
+	import XIcon from '@lucide/svelte/icons/x';
 	import DesireSelect from '#lib/components/DesireSelect.svelte';
 	import { Button as UiButton } from '#lib/components/ui/button/index.js';
 	import CoverPicker from '#lib/components/CoverPicker.svelte';
@@ -237,7 +239,7 @@
 			{#if suggestionError}<p class="text-sm font-medium" role="alert">! {suggestionError}</p>{/if}
 			<ul class="flex flex-col gap-4">
 				{#each data.suggestions as suggestion (suggestion.id)}
-					<li class="flex flex-wrap items-center gap-3">
+					<li class="grid grid-cols-[auto_1fr_auto] items-center gap-x-3 gap-y-1">
 						{#if suggestion.musicbrainzId && !brokenCovers.includes(suggestion.id)}
 							<img
 								src={coverUrl(suggestion)}
@@ -256,15 +258,39 @@
 								{initials(suggestion.artist)}
 							</span>
 						{/if}
-						<div class="flex min-w-0 flex-1 flex-col">
-							<span class="text-sm font-bold">{suggestion.title}</span>
-							<span class="text-sm text-muted-foreground">
-								{suggestion.artist}{suggestion.releaseYear ? ` · ${suggestion.releaseYear}` : ''}
-							</span>
-							<span class="text-sm">{suggestion.reason}</span>
+						<span class="min-w-0 text-sm font-bold">{suggestion.title}</span>
+						<div class="row-span-3 flex flex-col gap-2 self-start">
+							<UiButton
+								variant="success"
+								size="icon"
+								loading={busy.includes(`add-${suggestion.id}`)}
+								disabled={rowBusy(`add-${suggestion.id}`, `discard-${suggestion.id}`)}
+								onclick={() => (choosing = choosing === suggestion.id ? null : suggestion.id)}
+							>
+								<CheckIcon aria-hidden="true" class="size-5" />
+								<span class="sr-only">Add</span>
+							</UiButton>
+							<UiButton
+								variant="danger"
+								size="icon"
+								loading={busy.includes(`discard-${suggestion.id}`)}
+								disabled={rowBusy(`add-${suggestion.id}`, `discard-${suggestion.id}`)}
+								onclick={() =>
+									act(
+										`/api/admin/suggestions/${suggestion.id}/discard`,
+										`discard-${suggestion.id}`
+									)}
+							>
+								<XIcon aria-hidden="true" class="size-5" />
+								<span class="sr-only">Discard</span>
+							</UiButton>
 						</div>
-						<div class="flex flex-wrap gap-2">
-							{#if choosing === suggestion.id}
+						<span class="col-span-2 text-sm text-muted-foreground">
+							{suggestion.artist}{suggestion.releaseYear ? ` · ${suggestion.releaseYear}` : ''}
+						</span>
+						<span class="col-span-2 text-sm">{suggestion.reason}</span>
+						{#if choosing === suggestion.id}
+							<div class="col-span-3 pt-1">
 								<DesireSelect
 									label="Wanted level"
 									placeholder="Wanted level…"
@@ -277,28 +303,8 @@
 										});
 									}}
 								/>
-							{/if}
-							<Button
-								intent="success"
-								loading={busy.includes(`add-${suggestion.id}`)}
-								disabled={rowBusy(`add-${suggestion.id}`, `discard-${suggestion.id}`)}
-								onclick={() => (choosing = choosing === suggestion.id ? null : suggestion.id)}
-							>
-								Add
-							</Button>
-							<Button
-								intent="danger"
-								loading={busy.includes(`discard-${suggestion.id}`)}
-								disabled={rowBusy(`add-${suggestion.id}`, `discard-${suggestion.id}`)}
-								onclick={() =>
-									act(
-										`/api/admin/suggestions/${suggestion.id}/discard`,
-										`discard-${suggestion.id}`
-									)}
-							>
-								Discard
-							</Button>
-						</div>
+							</div>
+						{/if}
 					</li>
 				{/each}
 			</ul>
